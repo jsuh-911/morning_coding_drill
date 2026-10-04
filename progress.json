@@ -1,0 +1,38 @@
+{
+  "python": {
+    "groupby": {
+      "status": "active",
+      "level": 1,
+      "attempts": 0,
+      "correct": 0
+    },
+    "dataframe_filtering": {
+      "status": "mastered",
+      "level": 4
+    }
+  },
+  "sql": {
+    "select_where": {
+      "status": "mastered",
+      "level": 4
+    },
+    "joins": {
+      "status": "active",
+      "level": 1,
+      "attempts": 0,
+      "correct": 0
+    }
+  },
+  "cli": {
+    "file_operations": {
+      "status": "mastered",
+      "level": 4
+    },
+    "text_processing": {
+      "status": "active",
+      "level": 1,
+      "attempts": 0,
+      "correct": 0
+    }
+  }
+}

@@ -1,0 +1,20 @@
+# Core drill: data generation and grading.
+pandas>=3.0
+numpy>=2.5
+
+# The three agents.
+langgraph>=1.2
+langchain-core>=1.6
+pydantic>=2.13
+python-dotenv>=1.2
+
+# Model providers. One is enough -- whichever TRAINER_PROVIDER names in .env.
+langchain-anthropic>=1.7
+langchain-openai>=1.6
+
+# Notebook.
+jupyterlab>=4.6
+ipykernel>=7.4
+
+# Tests.
+pytest>=9.1
