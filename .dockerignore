@@ -1,0 +1,12 @@
+.git/
+.venv/
+.env
+.pytest_cache/
+__pycache__/
+*.pyc
+notebooks/
+tests/
+datasets/generated/
+logs/*.jsonl
+drill_records.json
+progress.json

@@ -1,0 +1,9 @@
+# The web UI. The drill itself needs none of this -- the notebook path is
+# unchanged, and `pip install -r requirements.txt` is still enough for it.
+-r requirements.txt
+
+fastapi>=0.118
+uvicorn[standard]>=0.37
+
+# Tests for the web layer (TestClient needs httpx).
+httpx>=0.28

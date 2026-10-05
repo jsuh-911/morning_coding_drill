@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morning Coding Drill</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-left">
+    <span class="dot" id="mode-dot" title=""></span>
+    <strong class="wordmark">Morning Drill</strong>
+    <span class="crumb" id="crumb"></span>
+  </div>
+  <div class="bar-right">
+    <button class="ghost" id="btn-status">Progress</button>
+    <button class="ghost" id="btn-save">Save notes</button>
+  </div>
+</header>
+
+<main id="layout" class="layout">
+
+  <!-- ------------------------------------------------ the question -->
+  <section class="pane pane-question" id="pane-question">
+    <div class="empty" id="empty">
+      <h1>Nothing set yet.</h1>
+      <p>The progress agent reads your record, picks the topic and the level,
+         and the trainer agent writes the challenge.</p>
+      <button class="primary big" id="btn-start">Set this morning's challenge</button>
+    </div>
+
+    <article class="question" id="question" hidden>
+      <p class="note" id="progress-note" hidden></p>
+
+      <h1 id="title"></h1>
+
+      <h2 class="label">Mission</h2>
+      <div class="mission" id="mission"></div>
+
+      <div id="return-wrap" hidden>
+        <h2 class="label">Return</h2>
+        <p class="kind"><code id="return-kind"></code></p>
+      </div>
+
+      <div id="toolbox-wrap" hidden>
+        <h2 class="label">Toolbox</h2>
+        <ul class="list" id="toolbox"></ul>
+      </div>
+
+      <div id="constraints-wrap" hidden>
+        <h2 class="label">Constraints</h2>
+        <ul class="list constraints" id="constraints"></ul>
+      </div>
+
+      <div id="dataset-wrap" hidden>
+        <h2 class="label">
+          Dataset
+          <span class="tabs">
+            <button class="tab on" data-view="rows">rows</button>
+            <button class="tab" data-view="describe">describe</button>
+          </span>
+        </h2>
+        <p class="shape" id="dataset-shape"></p>
+        <div class="scroll" id="dataset-table"></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- -------------------------------------------------- the sandbox -->
+  <section class="pane pane-work">
+    <div class="editor-wrap">
+      <div id="editor" class="editor"></div>
+      <textarea id="fallback" class="editor fallback" spellcheck="false" hidden></textarea>
+    </div>
+
+    <div class="toolbar">
+      <button class="ghost" id="btn-run">
+        Run <kbd>⌘↩</kbd>
+      </button>
+      <button class="primary" id="btn-submit">
+        Submit <kbd>⇧⌘↩</kbd>
+      </button>
+      <span class="spacer"></span>
+      <span class="attempt" id="attempt"></span>
+      <button class="ghost" id="btn-ask">Ask</button>
+    </div>
+
+    <div class="output" id="output">
+      <p class="hint-line">
+        Bind your result to <code id="answer-name">answer</code>.
+        <b>Run</b> is free and counts nothing. <b>Submit</b> costs an attempt.
+      </p>
+    </div>
+  </section>
+</main>
+
+<!-- ------------------------------------------------------- overlays -->
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-card">
+    <button class="x" id="sheet-close" aria-label="Close">&times;</button>
+    <div id="sheet-body"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

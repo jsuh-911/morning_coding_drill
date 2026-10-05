@@ -16,3 +16,4 @@ notebooks/.ipynb_checkpoints/
 
 # pytest
 .pytest_cache/
+.drill_token

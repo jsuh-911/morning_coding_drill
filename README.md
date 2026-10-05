@@ -25,6 +25,20 @@ a hand-written library, grading and the structural report on a miss are
 unchanged, and the prose coaching is what you lose. `session.status()` says
 which mode you are in.
 
+## Two front ends
+
+The notebook and the web app run the same `Session`, write the same
+`drill_records.json`, and are graded by the same code. Use either.
+
+```bash
+./drill            # installs web deps if missing, starts the server, opens the browser
+./drill 9000       # different port
+```
+
+The question on the left, a sandbox on the right. **Run** executes your code
+and costs nothing; **Submit** counts an attempt. See [web/README.md](web/README.md)
+for the configuration and for what deploying it beyond localhost involves.
+
 ## The daily loop
 
 Open [notebooks/daily_drill.ipynb](notebooks/daily_drill.ipynb) and run it top
@@ -111,4 +125,4 @@ python scripts/generate_dataset.py     # -> datasets/generated/biomarker_study.c
 python -m pytest tests/ -q
 ```
 
-109 tests, no API key needed — the agent paths run against stub models.
+128 tests, no API key needed — the agent paths run against stub models.

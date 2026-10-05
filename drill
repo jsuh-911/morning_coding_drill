@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Start the morning drill: ./drill  (optionally: ./drill 9000)
+set -e
+cd "$(dirname "$0")"
+PORT="${1:-8000}"
+[ -x .venv/bin/python ] || { echo "No .venv found; see README Setup." >&2; exit 1; }
+.venv/bin/python -c "import uvicorn" 2>/dev/null || .venv/bin/pip install -q -r requirements-web.txt
+(sleep 1.5; open "http://localhost:$PORT") &
+exec .venv/bin/python -m uvicorn web.app:app --port "$PORT"
