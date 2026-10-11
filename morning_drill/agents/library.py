@@ -10,21 +10,21 @@ from .schemas import GeneratedChallenge
 
 LIBRARY = [
     GeneratedChallenge(
-        title="Highest NEFL group",
+        title="Highest GFAP group",
         mission=(
             "Among samples passing QC (qc_score >= 0.85), identify which "
-            "disease group has the highest median NEFL intensity."
+            "disease group has the highest mean GFAP intensity."
         ),
-        toolbox=["boolean filtering", "groupby", "median", "idxmax"],
+        toolbox=["boolean filtering", "groupby", "mean", "idxmax"],
         constraint_ids=["no_loops", "use_pandas"],
         spec=ChallengeSpec(
             filters=[
                 {"column": "qc_score", "op": ">=", "value": 0.85},
-                {"column": "protein", "op": "==", "value": "NEFL"},
+                {"column": "protein", "op": "==", "value": "GFAP"},
             ],
             group_by=["disease"],
             value="intensity",
-            agg="median",
+            agg="mean",
             reduce="idxmax",
         ),
         topic="groupby",

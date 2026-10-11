@@ -47,7 +47,7 @@ class ScriptedModel:
 def challenge_with(**kw):
     base = dict(
         title="T",
-        mission="Identify which disease group has the highest median NEFL intensity among QC-passing samples.",
+        mission="Among QC-passing GFAP measurements, report the difference between the largest and smallest group-level median intensity across disease groups.",
         toolbox=[],
         constraint_ids=["no_loops", "use_pandas"],
         spec=ChallengeSpec(
@@ -448,3 +448,67 @@ def test_a_series_returning_spec_may_ask_for_values(df):
     )
 
     validate(ok, df)   # must not raise
+
+
+# ------------------------------------------------- mission matches the spec
+
+
+def test_validate_rejects_a_mission_asking_which_when_the_spec_returns_a_number(df):
+    """
+    "Which protein shows the greatest spread" with reduce=diff_extremes: the
+    spec returns one number, so the learner who names a protein is marked
+    wrong for answering the question as worded.
+    """
+    mismatched = challenge_with(
+        mission=(
+            "Restrict to measurements with qc_score above 0.7, then find which "
+            "protein shows the greatest spread between its highest and lowest "
+            "recorded intensity."
+        ),
+        spec=ChallengeSpec(
+            filters=[{"column": "qc_score", "op": ">", "value": 0.7}],
+            group_by=["protein"],
+            value="intensity",
+            agg="max",
+            reduce="diff_extremes",
+        ),
+    )
+
+    with pytest.raises(Rejection) as exc:
+        validate(mismatched, df)
+
+    assert "asks which group" in exc.value.reason
+
+
+def test_validate_rejects_a_mission_asking_for_an_amount_when_the_spec_returns_a_label(df):
+    mismatched = challenge_with(
+        mission="Report by how much the strongest disease group exceeds the weakest in median NEFL intensity.",
+        spec=ChallengeSpec(
+            filters=[{"column": "protein", "op": "==", "value": "NEFL"}],
+            group_by=["disease"],
+            value="intensity",
+            agg="median",
+            reduce="idxmax",
+        ),
+    )
+
+    with pytest.raises(Rejection) as exc:
+        validate(mismatched, df)
+
+    assert "asks for an amount" in exc.value.reason
+
+
+def test_validate_rejects_a_spread_that_does_not_name_its_statistic(df):
+    vague = challenge_with(
+        mission="Among QC-passing GFAP measurements, report the spread of intensity across disease groups.",
+    )
+
+    with pytest.raises(Rejection) as exc:
+        validate(vague, df)
+
+    assert "group-level median" in exc.value.reason
+
+
+def test_every_library_mission_matches_its_spec(df):
+    for challenge in LIBRARY:
+        validate(challenge, df)

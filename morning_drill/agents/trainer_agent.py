@@ -15,6 +15,8 @@ Nothing the agent writes is executed. The spec is interpreted by
 morning_drill.spec, which is hand-written.
 """
 
+import re
+
 import pandas as pd
 
 from ..discrimination import discrimination_report
@@ -39,6 +41,53 @@ def _selected_rows(df, spec):
         frame = frame[FILTER_OPS[f.op](frame[f.column], f.value)]
 
     return len(frame)
+
+
+# "which protein", "identify the disease group", "what group": asks for a name
+_ASKS_FOR_A_NAME = re.compile(
+    r"\b(which|what)\s+(\w+\s+){0,3}(proteins?|diseases?|groups?|cohorts?)\b"
+    r"|\b(identify|name|find|report)\s+the\s+(\w+\s+){0,2}(protein|disease|group|cohort)\b"
+)
+
+def _shape_mismatch(challenge):
+    """
+    The reason the mission asks for something other than what the spec
+    returns, or None. This is the failure a student cannot recover from: the
+    right answer to the question as worded is marked wrong.
+    """
+    spec = challenge.spec
+    mission = challenge.mission.lower()
+    kind = spec.answer_kind
+
+    if kind == "single number" and _ASKS_FOR_A_NAME.search(mission):
+        return (
+            f"the mission asks which group, but the spec returns {kind} "
+            f"(reduce={spec.reduce}). Ask for the number, or use reduce "
+            "idxmax/idxmin to ask for the group"
+        )
+
+    if kind in ("group label", "group key tuple") and re.search(
+        r"\b(difference between|how much|by how much)\b", mission
+    ):
+        return (
+            f"the mission asks for an amount, but the spec returns a {kind} "
+            f"(reduce={spec.reduce}). Ask which group, or use reduce "
+            "diff_extremes/max/min to ask for the number"
+        )
+
+    # A "spread" of what? The spec takes one statistic per group, then the
+    # gap between the largest and smallest group. Without the statistic named
+    # the student has to guess which, and a within-group range is a natural
+    # reading that the spec cannot express.
+    if spec.reduce == "diff_extremes":
+        if spec.agg not in mission:
+            return (
+                f"reduce=diff_extremes is the gap between the largest and "
+                f"smallest group-level {spec.agg}; the mission must say "
+                f"'group-level {spec.agg}' rather than describe a spread"
+            )
+
+    return None
 
 
 def validate(challenge, df, require_full_discrimination=False):
@@ -106,6 +155,11 @@ def validate(challenge, df, require_full_discrimination=False):
             "mission asks for two things; either ask only for the one value, "
             "or change reduce to `none` so a Series is returned"
         )
+
+    mismatch = _shape_mismatch(challenge)
+
+    if mismatch:
+        raise Rejection(mismatch)
 
     report = discrimination_report(df, challenge.spec)
 
