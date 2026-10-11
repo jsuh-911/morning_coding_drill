@@ -368,7 +368,7 @@ function renderRejection(d) {
 
 function busy(on, label) {
   state.busy = on;
-  ["btn-run", "btn-submit", "btn-start", "btn-ask"].forEach((id) => {
+  ["btn-run", "btn-submit", "btn-start", "btn-ask", "btn-flag"].forEach((id) => {
     const b = el(id);
     if (b) b.disabled = on;
   });
@@ -589,12 +589,48 @@ function showAsk() {
   });
 }
 
+function showFlag() {
+  sheet(
+    `<h2>Flag this question</h2>
+     <p class="hint-line">Use this when the question is wrong, unclear, or asks
+     for one thing and checks another. It counts for nothing, any attempts on it
+     are taken back, it is never dealt again, and you get a new one.</p>
+     <textarea class="notes" id="flag-why"
+       placeholder="what was wrong? (optional, but it helps fix the cause)"></textarea>
+     <div class="sheet-actions">
+       <button class="primary" id="btn-flag-go">Flag and skip</button>
+       <button class="ghost" id="btn-flag-cancel">Cancel</button>
+     </div>`
+  );
+
+  el("flag-why").focus();
+  el("btn-flag-cancel").addEventListener("click", closeSheet);
+
+  el("btn-flag-go").addEventListener("click", async () => {
+    const reason = el("flag-why").value.trim();
+    closeSheet();
+    busy(true, "Flagged. Dealing a new question...");
+
+    try {
+      apply(await api("/flag", { reason }));
+      el("output").innerHTML =
+        `<p class="hint-line">Flagged and skipped. Bind your result to ` +
+        `<code>${state.answerName}</code>.</p>`;
+    } catch (e) {
+      fail(e);
+    } finally {
+      busy(false);
+    }
+  });
+}
+
 /* --------------------------------------------------------------- boot */
 
 el("btn-start").addEventListener("click", start);
 el("btn-run").addEventListener("click", doRun);
 el("btn-submit").addEventListener("click", doSubmit);
 el("btn-ask").addEventListener("click", showAsk);
+el("btn-flag").addEventListener("click", showFlag);
 el("btn-status").addEventListener("click", showStatus);
 el("btn-save").addEventListener("click", showSave);
 el("sheet-close").addEventListener("click", closeSheet);

@@ -10,12 +10,12 @@ rejected and sent back for revision if:
   - the spec produces nothing, or something degenerate
   - the challenge is not discriminating: a student using the wrong statistic
     or dropping a filter would still pass
+  - a blind reader of the mission alone, without the spec, computes a
+    different answer: the mission is ambiguous or unanswerable as worded
 
 Nothing the agent writes is executed. The spec is interpreted by
 morning_drill.spec, which is hand-written.
 """
-
-import re
 
 import pandas as pd
 
@@ -24,6 +24,7 @@ from ..spec import evaluate_spec
 from . import prompts
 from .library import from_library
 from .schemas import GeneratedChallenge
+from .solver import check_mission
 
 
 class Rejection(Exception):
@@ -43,54 +44,7 @@ def _selected_rows(df, spec):
     return len(frame)
 
 
-# "which protein", "identify the disease group", "what group": asks for a name
-_ASKS_FOR_A_NAME = re.compile(
-    r"\b(which|what)\s+(\w+\s+){0,3}(proteins?|diseases?|groups?|cohorts?)\b"
-    r"|\b(identify|name|find|report)\s+the\s+(\w+\s+){0,2}(protein|disease|group|cohort)\b"
-)
-
-def _shape_mismatch(challenge):
-    """
-    The reason the mission asks for something other than what the spec
-    returns, or None. This is the failure a student cannot recover from: the
-    right answer to the question as worded is marked wrong.
-    """
-    spec = challenge.spec
-    mission = challenge.mission.lower()
-    kind = spec.answer_kind
-
-    if kind == "single number" and _ASKS_FOR_A_NAME.search(mission):
-        return (
-            f"the mission asks which group, but the spec returns {kind} "
-            f"(reduce={spec.reduce}). Ask for the number, or use reduce "
-            "idxmax/idxmin to ask for the group"
-        )
-
-    if kind in ("group label", "group key tuple") and re.search(
-        r"\b(difference between|how much|by how much)\b", mission
-    ):
-        return (
-            f"the mission asks for an amount, but the spec returns a {kind} "
-            f"(reduce={spec.reduce}). Ask which group, or use reduce "
-            "diff_extremes/max/min to ask for the number"
-        )
-
-    # A "spread" of what? The spec takes one statistic per group, then the
-    # gap between the largest and smallest group. Without the statistic named
-    # the student has to guess which, and a within-group range is a natural
-    # reading that the spec cannot express.
-    if spec.reduce == "diff_extremes":
-        if spec.agg not in mission:
-            return (
-                f"reduce=diff_extremes is the gap between the largest and "
-                f"smallest group-level {spec.agg}; the mission must say "
-                f"'group-level {spec.agg}' rather than describe a spread"
-            )
-
-    return None
-
-
-def validate(challenge, df, require_full_discrimination=False):
+def validate(challenge, df, require_full_discrimination=False, solver=None):
     """
     Raise Rejection with a reason the agent can act on, or return a report.
     """
@@ -145,22 +99,6 @@ def validate(challenge, df, require_full_discrimination=False):
             f"level {challenge.level} must not supply a toolbox"
         )
 
-    single_valued = challenge.spec.reduce not in ("none", "nlargest", "nsmallest")
-    two_output_phrases = ("report both", "along with its", "as well as its",
-                          "and its value", "and the value")
-
-    if single_valued and any(p in mission for p in two_output_phrases):
-        raise Rejection(
-            f"the spec returns one {challenge.spec.answer_kind} but the "
-            "mission asks for two things; either ask only for the one value, "
-            "or change reduce to `none` so a Series is returned"
-        )
-
-    mismatch = _shape_mismatch(challenge)
-
-    if mismatch:
-        raise Rejection(mismatch)
-
     report = discrimination_report(df, challenge.spec)
 
     if not report["discriminating"]:
@@ -179,10 +117,20 @@ def validate(challenge, df, require_full_discrimination=False):
             "the answer."
         )
 
+    # Last, because it spends model calls: the cheap decidable checks above
+    # have already passed.
+    if solver is not None:
+        reason, status = check_mission(solver, challenge, df)
+
+        if reason:
+            raise Rejection(reason)
+
+        report = {**report, "blind_check": status}
+
     return report
 
 
-def author(model, brief, df, max_revisions=2, seen=()):
+def author(model, brief, df, max_revisions=2, seen=(), never=()):
     """
     Trainer agent -> (GeneratedChallenge, discrimination report, notes).
 
@@ -191,7 +139,7 @@ def author(model, brief, df, max_revisions=2, seen=()):
     notes = []
 
     if model is None:
-        challenge = from_library(brief.topic, brief.level, exclude=seen)
+        challenge = from_library(brief.topic, brief.level, exclude=seen, never=never)
         return challenge, discrimination_report(df, challenge.spec), notes
 
     structured = model.with_structured_output(GeneratedChallenge)
@@ -214,7 +162,7 @@ def author(model, brief, df, max_revisions=2, seen=()):
             candidate = structured.invoke(prompt)
         except Exception as exc:
             notes.append(f"trainer agent unavailable ({exc}); used the library")
-            challenge = from_library(brief.topic, brief.level, exclude=seen)
+            challenge = from_library(brief.topic, brief.level, exclude=seen, never=never)
             return challenge, discrimination_report(df, challenge.spec), notes
 
         try:
@@ -222,6 +170,7 @@ def author(model, brief, df, max_revisions=2, seen=()):
                 candidate,
                 df,
                 require_full_discrimination=(attempt == 0),
+                solver=model,
             )
             return candidate, report, notes
         except Rejection as rejection:
@@ -248,5 +197,5 @@ def author(model, brief, df, max_revisions=2, seen=()):
             challenge = candidate
 
     notes.append("the trainer agent could not produce a sound challenge")
-    fallback = from_library(brief.topic, brief.level, exclude=seen)
+    fallback = from_library(brief.topic, brief.level, exclude=seen, never=never)
     return fallback, discrimination_report(df, fallback.spec), notes

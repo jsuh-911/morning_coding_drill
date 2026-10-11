@@ -87,12 +87,28 @@ Whether the answer is *right* is computed from the challenge's spec, not
 judged by a model. A right answer reached with a `for` loop, with `.apply()`
 where the mission forbade it, or typed in as a literal, is **not** a pass.
 
+Two checks keep the question and the answer honest:
+
+- **Your code is checked, not only its value.** A correct answer is re-run on
+  copies of the data built so that a missing filter, a wrong statistic or a
+  wrong cutoff changes the result (`morning_drill/probes.py`). Code that only
+  landed on the right label fails, with a hint about which part.
+- **The mission is checked against the spec** when the trainer agent writes a
+  challenge. A second model reads the mission alone, without the spec, and says
+  what the answer is and how to compute it; if it disagrees with the spec the
+  mission goes back for a rewrite (`morning_drill/agents/solver.py`).
+
+If a question is still wrong, `session.flag("why")` (the **Flag** button in the
+web app) takes it out: it scores nothing, any attempts on it are taken back, it
+is never dealt again, and a new one replaces it.
+
 The hint escalates each attempt: a question on the first, a line with the key
 part blanked on the second, a full walkthrough on the third.
 
 ```python
 session.reference()          # refuses until you have solved it
 session.ask("why idxmax?")   # a question without submitting an attempt
+session.flag("why")          # this question is wrong: skip it, count nothing
 session.status()             # progress, and this session's history
 session.data                 # the current challenge's DataFrame
 ```

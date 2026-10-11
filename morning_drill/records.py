@@ -93,7 +93,9 @@ def session_score(challenges):
     Session-level summary. `points` is for the human to watch a trend; the
     progress agent reasons from the raw facts instead.
     """
-    answered = [c for c in challenges if c.get("attempts")]
+    answered = [
+        c for c in challenges if c.get("attempts") and not c.get("flagged")
+    ]
 
     if not answered:
         return {
@@ -125,8 +127,12 @@ def upsert_session(path, session):
     so an abandoned start() leaves nothing behind.
     """
     session = dict(session)
+    # A flagged challenge is kept even with no attempts: the flag is what
+    # stops the same question being dealt again tomorrow.
     session["challenges"] = [
-        c for c in session.get("challenges", []) if c.get("attempts")
+        c
+        for c in session.get("challenges", [])
+        if c.get("attempts") or c.get("flagged")
     ]
 
     if not session["challenges"]:
@@ -174,7 +180,16 @@ def digest(path, recent=10, avoid=20, today=None):
         (s, c)
         for s in sessions
         for c in s.get("challenges", [])
-        if c.get("attempts")
+        if c.get("attempts") and not c.get("flagged")
+    ]
+
+    # Questions the learner reported as wrong. They count for nothing, in
+    # either direction, and are never dealt again.
+    flagged = [
+        c
+        for s in sessions
+        for c in s.get("challenges", [])
+        if c.get("flagged")
     ]
 
     topics = {}
@@ -253,7 +268,13 @@ def digest(path, recent=10, avoid=20, today=None):
         "as_of": (today or date.today()).isoformat(),
         "sessions": len(sessions),
         "topics": topics,
-        "avoid": signatures[-avoid:],
+        "avoid": list(
+            dict.fromkeys(
+                [c["spec_signature"] for c in flagged if c.get("spec_signature")]
+                + signatures[-avoid:]
+            )
+        ),
+        "flagged_ids": [c["challenge_id"] for c in flagged if c.get("challenge_id")],
         "recent": recent_rows,
         "notes": [
             {"on": s.get("date"), "note": s["notes"]}

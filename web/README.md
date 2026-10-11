@@ -28,6 +28,13 @@ Bind your result to `answer`. `df`, `pd` and `np` are already in scope.
 | `⇧⌘↩` | Submit |
 | `esc` | close a sheet |
 
+**Flag** is for a question that is wrong: it asks for one thing and checks
+another, or leaves something out that you cannot know. It counts for nothing,
+any attempts already spent on it are taken back out of the progress counts and
+the scores, it is never dealt again (the record keeps the flag, so tomorrow
+too), and a new question takes its place. The reason you type is kept in
+`drill_records.json` and `logs/session.jsonl`.
+
 A miss keeps your code in the editor — that is the point of the hint ladder.
 A new challenge starts clean. Drafts survive a page reload.
 

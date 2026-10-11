@@ -177,6 +177,23 @@ class ChallengeSpec(BaseModel):
         )
 
     @property
+    def answer_form(self):
+        """
+        answer_kind in the vocabulary a student would use, for comparing with
+        how a reader of the mission takes the question.
+        """
+        if self.reduce in ("idxmax", "idxmin"):
+            return "group label"
+
+        if self.reduce in ("max", "min", "diff_extremes"):
+            return "single number"
+
+        if self.reduce in ("nlargest", "nsmallest"):
+            return "ranked groups"
+
+        return "value per group"
+
+    @property
     def answer_kind(self):
         """
         What shape of object a correct answer has. Drives the constraint

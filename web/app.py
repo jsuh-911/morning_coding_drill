@@ -110,6 +110,10 @@ class AskIn(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
 
 
+class FlagIn(BaseModel):
+    reason: str = Field(default="", max_length=500)
+
+
 class NotesIn(BaseModel):
     notes: str = Field(default="", max_length=10_000)
 
@@ -151,6 +155,26 @@ def start():
             session.start()
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"Could not set a challenge: {exc}")
+
+        return _envelope(session, review=None)
+
+
+@app.post("/api/flag", dependencies=[Depends(require_token)])
+def flag(body: FlagIn):
+    """
+    The question is wrong. It counts for nothing, is not dealt again, and the
+    next one is dealt in its place.
+    """
+    with _lock:
+        session = get_session()
+
+        if session.thread_id is None:
+            raise HTTPException(status_code=409, detail="No challenge yet.")
+
+        try:
+            session.flag(body.reason)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Could not flag it: {exc}")
 
         return _envelope(session, review=None)
 

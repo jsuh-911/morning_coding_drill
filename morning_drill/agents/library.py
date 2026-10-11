@@ -33,7 +33,7 @@ LIBRARY = [
     GeneratedChallenge(
         title="Spread of GFAP across groups",
         mission=(
-            "Using only QC-passing measurements, report the difference between "
+            "Using only QC-passing measurements (qc_score >= 0.85), report the difference between "
             "the largest and smallest group-level median GFAP intensity across "
             "disease groups."
         ),
@@ -55,9 +55,9 @@ LIBRARY = [
     GeneratedChallenge(
         title="Three most variable proteins in AD",
         mission=(
-            "Within the AD cohort, restricted to QC-passing measurements, "
-            "return the three proteins whose intensity varies most, as a "
-            "Series ordered from most to least variable."
+            "Within the AD cohort, restricted to QC-passing measurements (qc_score >= 0.85), "
+            "return the three proteins with the largest standard deviation of "
+            "intensity, as a Series ordered from largest to smallest."
         ),
         toolbox=[],
         constraint_ids=["no_loops", "use_pandas", "no_apply"],
@@ -78,7 +78,7 @@ LIBRARY = [
     GeneratedChallenge(
         title="Extreme reading by assay",
         mission=(
-            "Restricting to QC-passing measurements, determine which protein "
+            "Restricting to QC-passing measurements (qc_score >= 0.85), determine which protein "
             "assay produced the single highest intensity reading in the study."
         ),
         toolbox=[],
@@ -96,14 +96,25 @@ LIBRARY = [
 ]
 
 
-def from_library(topic, level, exclude=()):
+def from_library(topic, level, exclude=(), never=()):
     """
     Closest library challenge to a brief.
+
+    `exclude` is what has been dealt already; when it empties the pool the
+    library is recycled. `never` is what the learner flagged as wrong, and
+    stays out even then.
     """
-    pool = [c for c in LIBRARY if c.id not in exclude]
+    pool = [c for c in LIBRARY if c.id not in exclude and c.id not in never]
 
     if not pool:
-        pool = list(LIBRARY)
+        pool = [c for c in LIBRARY if c.id not in never]
+
+    if not pool:
+        raise RuntimeError(
+            "every library question has been flagged as wrong, so there is "
+            "nothing left to deal without a model. Fix the library or turn "
+            "the agents on."
+        )
 
     on_topic = [c for c in pool if c.topic == topic] or pool
 

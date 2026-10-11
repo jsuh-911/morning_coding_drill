@@ -124,3 +124,37 @@ class ProgressDecision(BaseModel):
     next_level: int = Field(ge=1, le=4)
     note: str = Field(description="one line for the student")
     brief: Brief
+
+
+class BlindSolution(BaseModel):
+    """
+    A model's reading of a mission with the intended spec withheld. If it
+    cannot reproduce the spec from the prose, the prose is the problem.
+    """
+
+    expressible: bool = Field(
+        default=True,
+        description="false when the question cannot be written as a spec",
+    )
+    ambiguous: bool = Field(
+        default=False,
+        description="true when more than one reading is reasonable",
+    )
+    problem: str = Field(
+        default="", description="what is missing or ambiguous, in one sentence"
+    )
+    spec: Optional[ChallengeSpec] = None
+
+
+ANSWER_FORMS = ("group label", "single number", "ranked groups", "value per group")
+
+
+class AnswerForm(BaseModel):
+    """
+    What a reader of the mission alone takes the final answer to be, decided
+    before any method is in view -- so the method cannot bend the reading.
+    """
+
+    asks_for: Literal[ANSWER_FORMS]  # type: ignore[valid-type]
+    clear: bool = True
+    problem: str = ""

@@ -215,3 +215,59 @@ They asked:
 Answer the conceptual question they actually asked. Do not reveal the answer
 to the challenge or hand over the full solution, even if asked directly.
 """
+
+
+# ------------------------------------------------------------ blind solver
+
+SOLVER_PROMPT = """\
+{dataset}
+
+You are checking a data-analysis question for clarity. You are shown ONLY the
+question, as a student would see it. Write the spec that answers it, reading
+it exactly as worded.
+
+    filters -> groupby(group_by)[value].agg(agg) -> reduce
+
+WHAT EACH REDUCE RETURNS:
+
+  idxmax / idxmin    ONE group label (a tuple if group_by has two columns)
+  max / min          ONE number
+  diff_extremes      ONE number (largest group value minus smallest)
+  nlargest/nsmallest a Series of n groups, ordered
+  none               a Series with one row per group
+
+Rules:
+  - Answer the question that is asked. If it asks which group, the answer is
+    a label; if it asks how much, the answer is a number.
+  - Do not repair the question. If it cannot be expressed as a spec -- it asks
+    for something the pipeline cannot return, such as a statistic computed
+    WITHIN each group and then ranked, or two outputs at once -- set
+    `expressible` to false and say what is missing in `problem`.
+  - If two different specs are both reasonable readings, set `ambiguous` to
+    true and describe the readings in `problem`; still give the one you think
+    is most likely.
+
+QUESTION
+{mission}
+"""
+
+FORM_PROMPT = """\
+A student is given the data-analysis question below. They have a table of
+protein measurements with columns sample_id, disease, protein, intensity and
+qc_score, and nothing else.
+
+Read it as the student would, and say what the FINAL ANSWER is. Decide from
+the words of the question alone; do not try to make it fit any particular
+method.
+
+  group label       a name: which protein, which disease group
+  single number     one value: how much, what is the difference, the maximum
+  ranked groups     the top or bottom few groups, in order
+  value per group   a number for every group
+
+If the question asks for more than one of these at once, or the answer depends
+on something it does not say, set `clear` to false and say why.
+
+QUESTION
+{mission}
+"""

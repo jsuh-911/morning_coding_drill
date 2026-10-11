@@ -88,6 +88,7 @@ class Session:
 
         self.box = Box(
             progress=self.progress,
+            flagged=self.digest.get("flagged_ids", []),
             avoid=self.digest["avoid"],
             digest=self.digest,
         )
@@ -210,6 +211,79 @@ class Session:
         print()
 
         return score
+
+    def flag(self, reason=""):
+        """
+        This question is wrong or unanswerable as worded. It counts for
+        nothing -- any attempts already spent are taken back out of the
+        progress counts and the scores -- it is never dealt again, and the
+        next challenge is dealt in its place.
+        """
+        if self.thread_id is None or self._current is None:
+            raise RuntimeError("No active challenge. Run session.start() first.")
+
+        current = self._current
+        current["flagged"] = True
+        current["flag_reason"] = (reason or "").strip()[:500]
+        current["flagged_at"] = datetime.now().isoformat(timespec="seconds")
+
+        self._take_back_attempts(current)
+
+        records.upsert_session(self.records_path, self.session_record)
+
+        challenge_id = current["challenge_id"]
+
+        if challenge_id not in self.box.flagged:
+            self.box.flagged.append(challenge_id)
+
+        if current["spec_signature"] not in self.box.avoid:
+            self.box.avoid.append(current["spec_signature"])
+
+        self._log_flag(current)
+
+        # The previous challenge's outcome was applied when this one was
+        # dealt. Feeding it to the next start() would apply it twice.
+        self._outcome = None
+
+        return self.start()
+
+    def _take_back_attempts(self, current):
+        skill = (
+            self.box.progress.get(current.get("domain", "python"), {}).get(
+                current["topic"]
+            )
+        )
+
+        if not skill or not current.get("attempts_log"):
+            return
+
+        spent = len(current["attempts_log"])
+        right = sum(1 for a in current["attempts_log"] if a.get("passed"))
+
+        skill["attempts"] = max(0, skill.get("attempts", 0) - spent)
+        skill["correct"] = max(0, skill.get("correct", 0) - right)
+
+        save_progress(self.box.progress, self.progress_path)
+        self.progress = self.box.progress
+
+    def _log_flag(self, current):
+        try:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with self.log_path.open("a") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "at": current["flagged_at"],
+                            "flagged": current["challenge_id"],
+                            "reason": current["flag_reason"],
+                            "mission": current["mission"],
+                        }
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
 
     def ask(self, question):
         model = self.models["grader"]

@@ -64,9 +64,12 @@ class Box:
         "expected",
         "digest",
         "runner",
+        "flagged",
     )
 
-    def __init__(self, progress=None, history=None, seen=(), avoid=(), digest=None):
+    def __init__(
+        self, progress=None, history=None, seen=(), avoid=(), digest=None, flagged=()
+    ):
         self.dataset = None
         self.answer = None
         self.expected = None
@@ -75,6 +78,8 @@ class Box:
         self.seen = list(seen)
         self.avoid = list(avoid)
         self.digest = digest
+        # challenge ids the learner flagged as wrong: never dealt again
+        self.flagged = list(flagged)
         # (code, frame) -> answer, used to re-run a submission on probe data.
         # None means the in-process default.
         self.runner = None
@@ -164,7 +169,7 @@ def make_author(model):
         brief = Brief(**state["brief"])
 
         challenge, report, notes = author(
-            model, brief, box.dataset, seen=box.seen
+            model, brief, box.dataset, seen=box.seen, never=box.flagged
         )
 
         box.seen.append(challenge.id)

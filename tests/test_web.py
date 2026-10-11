@@ -317,3 +317,21 @@ def test_the_echoed_value_reaches_the_browser(started):
     assert body["ok"] is True
     assert body["value"]["table"]["rows"]
     assert body["answer_bound"] is False
+
+
+# ------------------------------------------------------------------ flag
+
+
+def test_flag_deals_a_new_question_and_costs_nothing(started):
+    first = started.get("/api/state").json()["challenge"]["id"]
+
+    response = started.post("/api/flag", json={"reason": "unclear"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["challenge"]["id"] != first
+    assert body["challenge"]["attempt"] == 0
+
+
+def test_flag_before_start_is_a_409(client):
+    assert client.post("/api/flag", json={"reason": "x"}).status_code == 409

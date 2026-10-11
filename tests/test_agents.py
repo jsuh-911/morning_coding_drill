@@ -7,7 +7,7 @@ import pytest
 
 from morning_drill.agents import author, decide, review, verify
 from morning_drill.agents.library import LIBRARY, from_library
-from morning_drill.agents.schemas import Brief, GeneratedChallenge, Review
+from morning_drill.agents.schemas import BlindSolution, Brief, GeneratedChallenge, Review
 from morning_drill.agents.trainer_agent import Rejection, validate
 from morning_drill.generators import generate_biomarker_dataset
 from morning_drill.spec import ChallengeSpec, evaluate_spec, spec_to_reference_code
@@ -405,31 +405,6 @@ def test_an_invented_topic_is_corrected():
     assert decision.brief.topic == "groupby"
 
 
-def test_validate_rejects_a_mission_asking_for_two_outputs(df):
-    """
-    Observed with a real model: the mission asked to "report both the winning
-    disease and its median intensity value for each protein", but the spec
-    returns a single ('NEFL', 'AD') tuple.
-    """
-    spec = ChallengeSpec(
-        filters=[{"column": "qc_score", "op": ">=", "value": 0.8}],
-        group_by=["protein", "disease"],
-        value="intensity",
-        agg="median",
-        reduce="idxmax",
-    )
-    bad = challenge_with(
-        spec=spec,
-        mission=(
-            "Within each protein, identify the disease with the highest median "
-            "intensity. Report both the winning disease and its median value."
-        ),
-    )
-
-    with pytest.raises(Rejection) as exc:
-        validate(bad, df)
-
-    assert "asks for two things" in exc.value.reason
 
 
 def test_a_series_returning_spec_may_ask_for_values(df):
@@ -453,13 +428,67 @@ def test_a_series_returning_spec_may_ask_for_values(df):
 # ------------------------------------------------- mission matches the spec
 
 
-def test_validate_rejects_a_mission_asking_which_when_the_spec_returns_a_number(df):
+
+
+
+
+
+
+def test_every_library_mission_matches_its_spec(df):
+    for challenge in LIBRARY:
+        validate(challenge, df)
+
+
+# ------------------------------------------------------------ blind solver
+
+
+class RoutedModel:
+    """Answers each structured-output schema from its own queue."""
+
+    def __init__(self, **queues):
+        self.queues = {k: list(v) for k, v in queues.items()}
+        self.calls = {k: 0 for k in queues}
+
+    def with_structured_output(self, schema):
+        outer = self
+        name = schema.__name__
+
+        class _S:
+            def invoke(self, prompt):
+                outer.calls[name] = outer.calls.get(name, 0) + 1
+                queue = outer.queues.get(name, [])
+
+                if not queue:
+                    raise RuntimeError("queue exhausted")
+
+                return queue.pop(0)
+
+        return _S()
+
+
+def reading(spec=None, **kw):
+    from morning_drill.agents.schemas import BlindSolution
+
+    return BlindSolution(spec=spec, **kw)
+
+
+def test_blind_reader_who_agrees_lets_the_mission_through(df):
+    challenge = challenge_with()
+    model = RoutedModel(BlindSolution=[reading(challenge.spec)] * 2)
+
+    report = validate(challenge, df, solver=model)
+
+    assert report["blind_check"] == "agreed"
+    assert model.calls["BlindSolution"] == 2
+
+
+def test_blind_reader_who_cannot_express_the_mission_rejects_it(df):
     """
-    "Which protein shows the greatest spread" with reduce=diff_extremes: the
-    spec returns one number, so the learner who names a protein is marked
-    wrong for answering the question as worded.
+    "Which protein shows the greatest spread between its highest and lowest
+    intensity" while the spec returns one number: a reader cannot write a spec
+    for it, and nobody needed a rule about the word "spread" to find out.
     """
-    mismatched = challenge_with(
+    challenge = challenge_with(
         mission=(
             "Restrict to measurements with qc_score above 0.7, then find which "
             "protein shows the greatest spread between its highest and lowest "
@@ -473,42 +502,153 @@ def test_validate_rejects_a_mission_asking_which_when_the_spec_returns_a_number(
             reduce="diff_extremes",
         ),
     )
-
-    with pytest.raises(Rejection) as exc:
-        validate(mismatched, df)
-
-    assert "asks which group" in exc.value.reason
-
-
-def test_validate_rejects_a_mission_asking_for_an_amount_when_the_spec_returns_a_label(df):
-    mismatched = challenge_with(
-        mission="Report by how much the strongest disease group exceeds the weakest in median NEFL intensity.",
-        spec=ChallengeSpec(
-            filters=[{"column": "protein", "op": "==", "value": "NEFL"}],
-            group_by=["disease"],
-            value="intensity",
-            agg="median",
-            reduce="idxmax",
-        ),
+    model = RoutedModel(
+        BlindSolution=[
+            reading(expressible=False, problem="a range within each protein is not an aggregate")
+        ]
     )
 
     with pytest.raises(Rejection) as exc:
-        validate(mismatched, df)
+        validate(challenge, df, solver=model)
 
-    assert "asks for an amount" in exc.value.reason
+    assert "cannot be answered as worded" in exc.value.reason
+    assert "range within each protein" in exc.value.reason
 
 
-def test_validate_rejects_a_spread_that_does_not_name_its_statistic(df):
-    vague = challenge_with(
-        mission="Among QC-passing GFAP measurements, report the spread of intensity across disease groups.",
+def test_blind_reader_who_returns_a_different_kind_of_answer_rejects_it(df):
+    challenge = challenge_with()  # diff_extremes: one number
+    label = challenge.spec.model_copy(update={"reduce": "idxmax"})
+    model = RoutedModel(BlindSolution=[reading(label)])
+
+    with pytest.raises(Rejection) as exc:
+        validate(challenge, df, solver=model)
+
+    assert "group label" in exc.value.reason
+    assert "single number" in exc.value.reason
+
+
+def test_blind_reader_who_computes_a_different_answer_names_the_difference(df):
+    challenge = challenge_with()
+    other = challenge.spec.model_copy(update={"agg": "mean"})
+    model = RoutedModel(BlindSolution=[reading(other)])
+
+    with pytest.raises(Rejection) as exc:
+        validate(challenge, df, solver=model)
+
+    assert "differ in agg" in exc.value.reason
+
+
+def test_blind_reader_who_calls_it_ambiguous_rejects_it(df):
+    challenge = challenge_with()
+    model = RoutedModel(
+        BlindSolution=[reading(challenge.spec, ambiguous=True, problem="median or mean?")]
     )
 
     with pytest.raises(Rejection) as exc:
-        validate(vague, df)
+        validate(challenge, df, solver=model)
 
-    assert "group-level median" in exc.value.reason
+    assert "ambiguous" in exc.value.reason
 
 
-def test_every_library_mission_matches_its_spec(df):
+def test_a_broken_solver_does_not_block_a_good_challenge(df):
+    model = RoutedModel(BlindSolution=[])
+
+    report = validate(challenge_with(), df, solver=model)
+
+    assert report["blind_check"] == "skipped"
+
+
+def test_trainer_agent_revises_after_the_blind_reader_rejects(df):
+    bad = challenge_with(mission="Which protein has the largest spread?")
+    good = challenge_with()
+    model = RoutedModel(
+        GeneratedChallenge=[bad, good],
+        BlindSolution=[
+            reading(expressible=False, problem="no such aggregate"),
+            reading(good.spec),
+            reading(good.spec),
+        ],
+    )
+
+    challenge, report, notes = author(
+        model,
+        Brief(topic="groupby", level=3, rationale="test"),
+        df,
+    )
+
+    assert challenge.mission == good.mission
+    assert any("cannot be answered as worded" in n for n in notes)
+    assert report["blind_check"] == "agreed"
+
+
+def test_the_library_is_not_sent_to_the_solver(df):
+    from morning_drill.agents.schemas import BlindSolution
+
+    model = RoutedModel(BlindSolution=[])
+
+    challenge, _, _ = author(None, Brief(topic="groupby", level=1, rationale="t"), df)
+
+    assert challenge in LIBRARY
+    assert model.calls["BlindSolution"] == 0
+
+
+def test_every_library_mission_states_the_numbers_its_spec_filters_on(df):
+    """
+    A student cannot guess that "QC-passing" means qc_score >= 0.85. Anything
+    the grader filters on numerically has to be readable in the mission.
+    """
     for challenge in LIBRARY:
-        validate(challenge, df)
+        for f in challenge.spec.filters:
+            if isinstance(f.value, (int, float)):
+                assert str(f.value) in challenge.mission, (
+                    f"{challenge.id}: mission never states {f.column} {f.op} {f.value}"
+                )
+
+
+def test_a_reader_who_takes_the_answer_to_be_a_name_rejects_a_numeric_spec(df):
+    """
+    The case that got through the first version of the solver: shown the
+    reducers, a reader maps "spread" onto diff_extremes and calls it fine.
+    The answer form is decided from the words alone, before any method.
+    """
+    from morning_drill.agents.schemas import AnswerForm
+
+    challenge = challenge_with()  # diff_extremes: one number
+    model = RoutedModel(
+        AnswerForm=[AnswerForm(asks_for="group label")],
+        BlindSolution=[reading(challenge.spec)],
+    )
+
+    with pytest.raises(Rejection) as exc:
+        validate(challenge, df, solver=model)
+
+    assert "takes the answer to be a group label" in exc.value.reason
+    assert "single number" in exc.value.reason
+    assert model.calls.get("BlindSolution", 0) == 0  # stopped before step 2
+
+
+def test_a_reader_who_finds_the_answer_unclear_rejects_it(df):
+    from morning_drill.agents.schemas import AnswerForm
+
+    model = RoutedModel(
+        AnswerForm=[
+            AnswerForm(asks_for="single number", clear=False, problem="asks for a name and a value")
+        ]
+    )
+
+    with pytest.raises(Rejection) as exc:
+        validate(challenge_with(), df, solver=model)
+
+    assert "unclear what the answer is" in exc.value.reason
+
+
+def test_a_reader_who_agrees_on_the_form_goes_on_to_the_computation(df):
+    from morning_drill.agents.schemas import AnswerForm
+
+    challenge = challenge_with()
+    model = RoutedModel(
+        AnswerForm=[AnswerForm(asks_for="single number")] * 2,
+        BlindSolution=[reading(challenge.spec)] * 2,
+    )
+
+    assert validate(challenge, df, solver=model)["blind_check"] == "agreed"
