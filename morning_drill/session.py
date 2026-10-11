@@ -63,6 +63,7 @@ class Box:
         "avoid",
         "expected",
         "digest",
+        "runner",
     )
 
     def __init__(self, progress=None, history=None, seen=(), avoid=(), digest=None):
@@ -74,6 +75,9 @@ class Box:
         self.seen = list(seen)
         self.avoid = list(avoid)
         self.digest = digest
+        # (code, frame) -> answer, used to re-run a submission on probe data.
+        # None means the in-process default.
+        self.runner = None
 
 
 def box_of(config):
@@ -210,6 +214,7 @@ def verify_node(state, config):
         box.dataset,
         box.answer,
         state.get("code", ""),
+        runner=box.runner,
     )
 
     box.expected = verification["expected"]

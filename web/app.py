@@ -60,6 +60,15 @@ def _constant_time_eq(a, b):
 # ----------------------------------------------------------------- session
 
 
+def _probe_runner(code, frame):
+    result = run_user_code(code, frame)
+
+    if not result.submittable:
+        raise RuntimeError(result.traceback or "no answer")
+
+    return result.answer
+
+
 def get_session():
     global _session
 
@@ -71,6 +80,9 @@ def get_session():
             auto_next=False,
             **config.session_paths(),
         )
+        # Probe runs of a submission go through the same sandbox as Run, so
+        # they get the same timeout and memory cap.
+        _session.box.runner = _probe_runner
 
     return _session
 

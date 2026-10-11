@@ -9,12 +9,13 @@ challenge spec by morning_drill.spec, not judged.
 
 from ..constraints import CONSTRAINT_CHECKS, check_constraints, looks_hardcoded
 from ..graders import compare_answers, discrepancy_report
+from ..probes import method_failures
 from ..spec import evaluate_spec
 from . import prompts
 from .schemas import Review
 
 
-def verify(challenge, dataset, answer, code):
+def verify(challenge, dataset, answer, code, runner=None):
     """
     The deterministic half. No model involved.
     """
@@ -31,10 +32,23 @@ def verify(challenge, dataset, answer, code):
             "the answer was written in as a literal rather than computed"
         )
 
+    # A right value is not yet a right method: on this data several wrong
+    # pipelines land on the same label. Run the code on data built to tell
+    # them apart.
+    method_failed = False
+
+    if correct and not hardcoded:
+        failures = method_failures(code, dataset, challenge.spec, runner)
+
+        if failures:
+            correct = False
+            method_failed = True
+            violations.extend(failures)
+
     # a hardcoded answer has no structural discrepancy to report: the value
     # is right, the method is the problem
     discrepancy = (
-        {} if correct or hardcoded else discrepancy_report(answer, expected)
+        {} if correct or hardcoded or method_failed else discrepancy_report(answer, expected)
     )
 
     return {

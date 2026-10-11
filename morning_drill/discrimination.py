@@ -27,6 +27,9 @@ SWAPS = {
 }
 
 
+TRIVIAL = {"idxmin instead of idxmax"}
+
+
 def _same(a, b):
     try:
         if isinstance(a, pd.Series) and isinstance(b, pd.Series):
@@ -85,10 +88,15 @@ def discrimination_report(df, spec):
 
         (missed if _same(truth, result) else caught).append(label)
 
+    # Flipping idxmax to idxmin changes the answer of every idxmax challenge,
+    # so catching it proves nothing about the statistic or the filters. Only
+    # a mistake about the pipeline itself counts toward "discriminating".
+    substantive = [label for label in caught if label not in TRIVIAL]
+
     return {
         "caught": caught,
         "missed": missed,
-        "discriminating": bool(caught),
+        "discriminating": bool(substantive),
         "summary": (
             f"catches {len(caught)} of {len(caught) + len(missed)} "
             "plausible mistakes"

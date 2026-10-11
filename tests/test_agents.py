@@ -10,7 +10,7 @@ from morning_drill.agents.library import LIBRARY, from_library
 from morning_drill.agents.schemas import Brief, GeneratedChallenge, Review
 from morning_drill.agents.trainer_agent import Rejection, validate
 from morning_drill.generators import generate_biomarker_dataset
-from morning_drill.spec import ChallengeSpec, evaluate_spec
+from morning_drill.spec import ChallengeSpec, evaluate_spec, spec_to_reference_code
 
 
 @pytest.fixture(scope="module")
@@ -200,10 +200,12 @@ def test_verify_is_the_authority_on_correctness(df):
     challenge = from_library("groupby", 1)
     expected = evaluate_spec(df, challenge.spec)
 
-    good = verify(challenge, df, expected, 'answer = df.groupby("disease")["intensity"].median().idxmax()')
+    reference = "answer = " + spec_to_reference_code(challenge.spec).strip()
+
+    good = verify(challenge, df, expected, reference)
     assert good["correct"] is True
 
-    bad = verify(challenge, df, "PD", 'answer = df.groupby("disease")["intensity"].median().idxmax()')
+    bad = verify(challenge, df, "PD", reference)
     assert bad["correct"] is False
 
 
