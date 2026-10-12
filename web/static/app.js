@@ -316,6 +316,13 @@ function renderReview(v, extra = {}) {
     parts.push(`<p class="violation">constraint &mdash; ${esc(text)}</p>`)
   );
 
+  if (!v.passed && v.attempt >= 3) {
+    parts.push(
+      `<p class="hint-line">Sure your code does what the question says? ` +
+        `Use <b>Flag</b>: the question may be wrong, not you.</p>`
+    );
+  }
+
   if (!v.passed) {
     if (v.root_cause) {
       parts.push(

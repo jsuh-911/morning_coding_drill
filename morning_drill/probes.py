@@ -24,7 +24,7 @@ from .graders import compare_answers
 from .spec import FILTER_OPS, evaluate_spec
 
 NUMERIC_CUTOFFS = (">", ">=", "<", "<=")
-OUTLIER_AGGS = ("mean", "median", "max", "min", "sum", "std")
+OUTLIER_AGGS = ("mean", "median", "max", "min", "sum", "std", "var", "range")
 LOW_REDUCERS = ("idxmin", "min", "nsmallest")
 
 

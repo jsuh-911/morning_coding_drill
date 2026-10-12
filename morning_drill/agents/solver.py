@@ -102,7 +102,11 @@ def check_mission(model, challenge, df, samples=2):
     either way) or "rejected".
     """
     # Step 1: the shape of the answer, from the words alone.
-    forms = read_answer_form(model, challenge.mission, samples)
+    # The student sees the title as well; a title that asks something else
+    # ("Which group...") over a mission that asks for a number is a conflict.
+    forms = read_answer_form(
+        model, f"{challenge.title}\n{challenge.mission}", samples
+    )
     wanted = challenge.spec.answer_form
 
     for form in forms:

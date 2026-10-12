@@ -23,6 +23,8 @@ SWAPS = {
     "sum": "mean",
     "count": "nunique",
     "std": "mean",
+    "var": "mean",
+    "range": "std",
     "nunique": "count",
 }
 

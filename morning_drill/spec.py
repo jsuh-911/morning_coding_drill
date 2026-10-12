@@ -57,6 +57,10 @@ AGGS = [
     "count",
     "std",
     "nunique",
+    "var",
+    # max - min WITHIN each group. Not the same as the diff_extremes reducer,
+    # which is the gap BETWEEN groups.
+    "range",
 ]
 
 REDUCERS = [
@@ -218,7 +222,12 @@ def evaluate_spec(df, spec):
         frame = frame[FILTER_OPS[f.op](frame[f.column], f.value)]
 
     key = spec.group_by[0] if len(spec.group_by) == 1 else spec.group_by
-    grouped = frame.groupby(key)[spec.value].agg(spec.agg)
+    column = frame.groupby(key)[spec.value]
+
+    if spec.agg == "range":
+        grouped = column.max() - column.min()
+    else:
+        grouped = column.agg(spec.agg)
 
     if spec.reduce == "none":
         return grouped
@@ -270,7 +279,12 @@ def spec_to_reference_code(spec):
         else repr(spec.group_by)
     )
 
-    body = f'      .groupby({key})["{spec.value}"]\n      .{spec.agg}()\n'
+    if spec.agg == "range":
+        stat = "      .agg(lambda s: s.max() - s.min())\n"
+    else:
+        stat = f"      .{spec.agg}()\n"
+
+    body = f'      .groupby({key})["{spec.value}"]\n{stat}'
 
     tail = {
         "none": "",

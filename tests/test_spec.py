@@ -91,3 +91,50 @@ def test_answer_kind_tracks_the_reducer():
     assert "label" in ChallengeSpec(**base, reduce="idxmax").answer_kind
     assert "number" in ChallengeSpec(**base, reduce="max").answer_kind
     assert "Series" in ChallengeSpec(**base, reduce="none").answer_kind
+
+
+# ------------------------------------------------------------ range
+
+
+def test_range_is_the_gap_within_each_group_not_between_groups(df):
+    """
+    "For each disease group, the gap between its highest and lowest intensity,
+    then the largest of those" -- the question that was marked wrong because
+    only a between-groups reduce existed.
+    """
+    spec = ChallengeSpec(
+        filters=[{"column": "qc_score", "op": ">", "value": 0.6}],
+        group_by=["disease"],
+        value="intensity",
+        agg="range",
+        reduce="max",
+    )
+
+    kept = df[df.qc_score > 0.6]
+    by_hand = (
+        kept.groupby("disease").intensity.max() - kept.groupby("disease").intensity.min()
+    ).max()
+
+    assert evaluate_spec(df, spec) == by_hand
+
+    between = ChallengeSpec(
+        filters=spec.filters, group_by=["disease"], value="intensity",
+        agg="max", reduce="diff_extremes",
+    )
+    assert evaluate_spec(df, between) != by_hand
+
+
+def test_the_reference_code_for_range_computes_what_the_spec_does(df):
+    from morning_drill.spec import spec_to_reference_code
+
+    spec = ChallengeSpec(
+        filters=[{"column": "qc_score", "op": ">", "value": 0.6}],
+        group_by=["disease"],
+        value="intensity",
+        agg="range",
+        reduce="max",
+    )
+    ns = {"df": df}
+    exec(spec_to_reference_code(spec), ns)
+
+    assert ns["answer"] == evaluate_spec(df, spec)

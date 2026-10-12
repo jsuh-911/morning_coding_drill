@@ -101,6 +101,11 @@ nothing more:
   nlargest/nsmallest a Series of n groups, ordered
   none              a Series with one row per group
 
+`range` is max minus min WITHIN each group. `diff_extremes` is something else:
+the largest group value minus the smallest group value ACROSS groups. "The gap
+between a group's highest and lowest reading" is agg=range; "the gap between
+the best and the worst group" is diff_extremes. Do not use one for the other.
+
 There is no way to return a table with several columns, and no way to
 return a value *and* its label. If the mission says "report both X and its
 Y", or asks for a per-group answer while reduce returns one value, the
@@ -174,6 +179,12 @@ ATTEMPT {attempt} ON THIS CHALLENGE
 YOUR TASK
 {task}
 
+Never explain a wrong answer by a stale value, the environment, a re-run or
+anything outside the code. If the code does what the mission says and the
+answer is still reported wrong, say that plainly: the student's reading and
+the checker's disagree. Name the specific difference you can see, and tell
+them they can Flag the question if they believe their code matches it.
+
 Set error_class to `correct` only if the answer is correct and no constraint
 was violated. Judge the reasoning in the code, not only the output: a right
 answer reached by a confused route is style_only at best, and you should say
@@ -236,9 +247,17 @@ WHAT EACH REDUCE RETURNS:
   nlargest/nsmallest a Series of n groups, ordered
   none               a Series with one row per group
 
+`range` is max minus min WITHIN each group. `diff_extremes` is something else:
+the largest group value minus the smallest group value ACROSS groups. "The gap
+between a group's highest and lowest reading" is agg=range; "the gap between
+the best and the worst group" is diff_extremes. Do not use one for the other.
+
 Rules:
   - Answer the question that is asked. If it asks which group, the answer is
     a label; if it asks how much, the answer is a number.
+  - Do not map the question onto the nearest option. Choose the option that
+    computes exactly what is asked, and if none does, say it is not
+    expressible.
   - Do not repair the question. If it cannot be expressed as a spec -- it asks
     for something the pipeline cannot return, such as a statistic computed
     WITHIN each group and then ranked, or two outputs at once -- set
