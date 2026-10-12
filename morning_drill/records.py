@@ -153,6 +153,42 @@ def upsert_session(path, session):
     return data
 
 
+def challenges(path):
+    """
+    Every recorded challenge, oldest first, as (session, challenge) pairs.
+    """
+    return [
+        (s, c)
+        for s in load(path)["sessions"]
+        for c in s.get("challenges", [])
+    ]
+
+
+def flag_in_record(path, challenge_id, reason=""):
+    """
+    Mark a recorded challenge as wrong. It then counts for nothing in the
+    scores or the digest, and is never dealt again. Returns the challenge, or
+    None if there is no such id.
+    """
+    data = load(path)
+
+    for session in data["sessions"]:
+        for challenge in session.get("challenges", []):
+            if challenge.get("challenge_id") != challenge_id:
+                continue
+
+            challenge["flagged"] = True
+            challenge["flag_reason"] = (reason or "").strip()[:500]
+            challenge["flagged_at"] = datetime.now().isoformat(timespec="seconds")
+
+            session["score"] = session_score(session["challenges"])
+            save(data, path)
+
+            return challenge
+
+    return None
+
+
 def _days_since(stamp, today=None):
     if not stamp:
         return None

@@ -117,6 +117,20 @@ winning disease group, the mean and the median name different groups in several
 cells, and low-QC rows are biased. `python -m scripts.discrimination_yield`
 reports how often a random question tells right from wrong.
 
+**Correcting the record.** The Flag button only reaches the question on screen.
+A bad question you already moved past keeps counting against you, and the
+progress agent keeps reacting to it ("groupby still slipping on..."). Fix it
+afterwards:
+
+```bash
+./records list                       # recent challenges, with what the grader blamed
+./records flag 12 unanswerable       # take question 12 out of the record
+./records level groupby 3 active     # put a topic back where it should be
+```
+
+Flagging also gives back the attempts it cost you. Restart the web app
+afterwards, since it holds progress in memory.
+
 If a question is still wrong, `session.flag("why")` (the **Flag** button in the
 web app) takes it out: it scores nothing, any attempts on it are taken back, it
 is never dealt again, and a new one replaces it.

@@ -94,3 +94,21 @@ def ensure_topic(progress, domain, topic):
         {"status": "active", "level": 1, "attempts": 0, "correct": 0},
     )
     return progress
+
+
+def take_back_attempts(progress, domain, topic, attempts_log):
+    """
+    Undo what record_attempt counted for a challenge that turned out to be
+    wrong. Returns True if there was anything to undo.
+    """
+    skill = progress.get(domain, {}).get(topic)
+
+    if not skill or not attempts_log:
+        return False
+
+    skill["attempts"] = max(0, skill.get("attempts", 0) - len(attempts_log))
+    skill["correct"] = max(
+        0, skill.get("correct", 0) - sum(1 for a in attempts_log if a.get("passed"))
+    )
+
+    return True

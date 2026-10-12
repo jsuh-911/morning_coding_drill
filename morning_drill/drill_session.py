@@ -22,6 +22,7 @@ from .progress import (
     load_progress,
     record_attempt,
     save_progress,
+    take_back_attempts,
 )
 from . import records
 from .session import BOX_KEY, Box, build_session_graph
@@ -248,23 +249,14 @@ class Session:
         return self.start()
 
     def _take_back_attempts(self, current):
-        skill = (
-            self.box.progress.get(current.get("domain", "python"), {}).get(
-                current["topic"]
-            )
-        )
-
-        if not skill or not current.get("attempts_log"):
-            return
-
-        spent = len(current["attempts_log"])
-        right = sum(1 for a in current["attempts_log"] if a.get("passed"))
-
-        skill["attempts"] = max(0, skill.get("attempts", 0) - spent)
-        skill["correct"] = max(0, skill.get("correct", 0) - right)
-
-        save_progress(self.box.progress, self.progress_path)
-        self.progress = self.box.progress
+        if take_back_attempts(
+            self.box.progress,
+            current.get("domain", "python"),
+            current["topic"],
+            current.get("attempts_log"),
+        ):
+            save_progress(self.box.progress, self.progress_path)
+            self.progress = self.box.progress
 
     def _log_flag(self, current):
         try:

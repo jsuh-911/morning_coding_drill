@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# ./records list | flag <n> <why> | level <topic> <1-4>   (see scripts/records.py)
+cd "$(dirname "$0")"
+exec .venv/bin/python -m scripts.records "$@"
