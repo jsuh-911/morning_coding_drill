@@ -283,3 +283,39 @@ def test_the_answer_without_cleaning_is_marked_wrong_in_a_session(tmp_path):
     exec(uncleaned, ns)
 
     assert not session.submit(ns["answer"], code=uncleaned)
+
+
+def test_mastering_groupby_in_a_session_leads_to_a_cleaning_topic(tmp_path):
+    """
+    The claim that the cleaning topics arrive once groupby is mastered, tested
+    end to end rather than assumed.
+    """
+    (tmp_path / "progress.json").write_text(
+        json.dumps(
+            {
+                "python": {
+                    "dataframe_filtering": {"status": "mastered", "level": 4},
+                    "groupby": {"status": "active", "level": 4},
+                }
+            }
+        )
+    )
+    session = Session(
+        progress_path=tmp_path / "progress.json",
+        log_path=tmp_path / "session.jsonl",
+        records_path=tmp_path / "drill_records.json",
+        agents=False,
+        auto_next=False,
+    )
+    session.start()
+    assert session.challenge["topic"] == "groupby"
+
+    code = session._last_state["reference_solution"]
+    ns = {"df": session.data.copy(), "np": np, "pd": pd}
+    exec(code, ns)
+    assert session.submit(ns["answer"], code=code)
+
+    session.start()
+
+    assert session.challenge["topic"] == "missing_duplicates"
+    assert session.box.truth is not None  # the raw table

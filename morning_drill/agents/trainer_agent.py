@@ -212,6 +212,11 @@ def author(
             challenge = from_library(brief.topic, brief.level, exclude=seen, never=never)
             return challenge, discrimination_report(df, challenge.spec), notes
 
+        # The brief decides the topic and level. A challenge that names another
+        # would be recorded, scored and labelled as something it is not.
+        candidate = candidate.model_copy(
+            update={"topic": brief.topic, "level": brief.level}
+        )
         candidate = render_challenge(candidate, mess_kinds)
 
         try:

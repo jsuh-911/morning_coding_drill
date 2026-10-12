@@ -401,3 +401,103 @@ def test_only_failures_count_as_mistakes(tmp_path):
     assert "correct" not in recorded["error_classes"]
     assert len(recorded["root_causes"]) == 1          # the failed attempt only
     assert len(recorded["attempts_log"]) == 2         # both attempts' code kept
+
+
+# ------------------------------------------------ only topics we can set
+
+
+def test_a_topic_with_no_generator_is_never_set():
+    """
+    The curriculum lists SQL and the command line, but the trainer can only
+    write questions on the protein table. A brief for sql/joins produced a
+    pandas question under an SQL heading, with the attempts recorded against a
+    topic that was never practised.
+    """
+    from morning_drill.agents.progress_agent import decide
+    from morning_drill.agents.schemas import ProgressDecision
+
+    class PicksSql:
+        def with_structured_output(self, schema):
+            return self
+
+        def invoke(self, prompt):
+            return ProgressDecision(
+                topic_status="active",
+                next_level=1,
+                note="x",
+                brief=Brief(domain="sql", topic="joins", level=1, rationale="r"),
+            )
+
+    decision = decide(PicksSql(), {"python": {}}, avoid=["sig"])
+
+    assert (decision.brief.domain, decision.brief.topic) == ("python", "dataframe_filtering")
+    assert decision.brief.avoid == ["sig"]
+
+
+def test_a_python_topic_with_a_generator_is_kept():
+    from morning_drill.agents.progress_agent import decide
+    from morning_drill.agents.schemas import ProgressDecision
+
+    class PicksCleaning:
+        def with_structured_output(self, schema):
+            return self
+
+        def invoke(self, prompt):
+            return ProgressDecision(
+                topic_status="active",
+                next_level=2,
+                note="x",
+                brief=Brief(topic="string_ops", level=2, rationale="r"),
+            )
+
+    assert decide(PicksCleaning(), {"python": {}}).brief.topic == "string_ops"
+
+
+def test_mastering_a_topic_moves_on_to_the_next_one():
+    """
+    After groupby survived level 4 the rule-based brief was groupby level 4
+    again, so the cleaning topics after it were never reached.
+    """
+    from morning_drill.agents.progress_agent import fallback_decision
+
+    progress = {
+        "python": {
+            "dataframe_filtering": {"status": "mastered", "level": 4},
+            "groupby": {"status": "active", "level": 4},
+        }
+    }
+    outcome = {"topic": "groupby", "level": 4, "passed": True, "attempt": 1, "domain": "python"}
+
+    decision = fallback_decision(progress, outcome, history=[{"passed": True}], digest=None)
+
+    assert decision.topic_status == "mastered"
+    assert decision.brief.topic == "missing_duplicates"
+    assert decision.brief.level == 1
+
+
+def test_a_topic_that_is_not_mastered_stays_put():
+    from morning_drill.agents.progress_agent import fallback_decision
+
+    progress = {"python": {"groupby": {"status": "active", "level": 2}}}
+    outcome = {"topic": "groupby", "level": 2, "passed": True, "attempt": 1, "domain": "python"}
+
+    decision = fallback_decision(progress, outcome, history=[{"passed": True}], digest=None)
+
+    assert decision.brief.topic == "groupby"
+    assert decision.brief.level == 3
+
+
+def test_the_progress_agent_is_only_shown_topics_it_can_set():
+    from morning_drill.agents.progress_agent import _format_progress
+
+    text = _format_progress(
+        {
+            "python": {"groupby": {"status": "active", "level": 2}},
+            "sql": {"joins": {"status": "active", "level": 1}},
+            "cli": {"file_operations": {"status": "mastered", "level": 4}},
+        }
+    )
+
+    assert "groupby" in text
+    assert "joins" not in text and "file_operations" not in text
+    assert "sql" not in text and "cli" not in text

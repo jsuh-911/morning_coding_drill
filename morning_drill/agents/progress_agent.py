@@ -6,7 +6,7 @@ when to fold an older mastered skill back in unannounced. It speaks to the
 trainer agent through a Brief.
 """
 
-from ..curriculum import CURRICULUM, curriculum_text, next_topic
+from ..curriculum import CURRICULUM, IMPLEMENTED, curriculum_text, next_topic
 from ..records import digest_text, retrieval_due
 from . import prompts
 from .schemas import Brief, ProgressDecision
@@ -109,6 +109,31 @@ def fallback_decision(progress, outcome, history, digest=None):
             ]
             stale = others[0] if others else None
 
+    # Mastering a topic moves on to the next one in the curriculum. Without
+    # this the brief stayed on the mastered topic forever, and the topics after
+    # it were never reached.
+    if status == "mastered" and not stale:
+        moved = {
+            domain: {name: dict(state) for name, state in topics.items()}
+            for domain, topics in progress.items()
+        }
+        moved.setdefault(outcome.get("domain", "python"), {}).setdefault(topic, {})[
+            "status"
+        ] = "mastered"
+
+        following, following_level = next_topic(moved, history)
+
+        return ProgressDecision(
+            topic_status=status,
+            next_level=next_level,
+            note=note,
+            brief=Brief(
+                topic=following,
+                level=following_level,
+                rationale="the next topic in the curriculum",
+            ),
+        )
+
     if stale:
         return ProgressDecision(
             topic_status=status,
@@ -170,11 +195,20 @@ def decide(model, progress, outcome=None, history=None, avoid=(), digest=None):
 
     decision.brief.avoid = list(avoid)
 
-    if decision.brief.topic not in CURRICULUM.get(decision.brief.domain, {}):
-        # the agent invented a topic; keep the level, fix the topic
-        decision.brief.topic = fallback_decision(
+    # Only topics there is a generator for. The curriculum lists more (SQL, the
+    # command line) than the trainer can write questions about; a brief for one
+    # of those got a pandas question under the wrong heading, with the attempts
+    # recorded against a topic that was never practised.
+    chosen = (decision.brief.domain, decision.brief.topic)
+    available = {
+        (domain, name) for domain, names in IMPLEMENTED.items() for name in names
+    }
+
+    if chosen not in available:
+        decision.brief = fallback_decision(
             progress, outcome, history, digest
-        ).brief.topic
+        ).brief
+        decision.brief.avoid = list(avoid)
 
     return decision
 
@@ -183,9 +217,20 @@ def _format_progress(progress):
     lines = []
 
     for domain, topics in progress.items():
+        # Only what can be set. Topics seeded in progress.json for SQL and the
+        # command line read as "active" to a model, which then picks one.
+        settable = {
+            name: state
+            for name, state in topics.items()
+            if name in IMPLEMENTED.get(domain, [])
+        }
+
+        if not settable:
+            continue
+
         lines.append(f"{domain}:")
 
-        for topic, state in topics.items():
+        for topic, state in settable.items():
             lines.append(
                 f"  {topic}: {state.get('status')} level {state.get('level')} "
                 f"attempts {state.get('attempts', 0)} "

@@ -742,3 +742,18 @@ def test_a_rejected_cleaning_challenge_says_what_each_defect_needs(df):
         validate(challenge, df, mess_kinds=mess_for_topic("string_ops"))
 
     assert "disease_text: filter on a disease or group by disease" in exc.value.reason
+
+
+def test_the_challenge_takes_its_topic_and_level_from_the_brief(df):
+    """
+    A model that labels its challenge sql/joins must not get it recorded,
+    scored and displayed as sql/joins when the brief said groupby level 3.
+    """
+    drifted = challenge_with(topic="joins", level=1)
+    model = ScriptedModel([drifted])
+
+    challenge, _, _ = author(
+        model, Brief(topic="groupby", level=3, rationale="x"), df
+    )
+
+    assert (challenge.topic, challenge.level) == ("groupby", 3)

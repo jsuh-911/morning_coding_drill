@@ -53,6 +53,8 @@ Decide:
 - a brief for the trainer agent naming the next topic and level
 
 Rules you must apply:
+- Choose a topic ONLY from those with no "(no generator yet)" mark. The others
+  cannot be set yet; picking one produces a mislabelled question.
 - A topic is mastered only once it has survived level 4. Passing at level 1
   is not mastery.
 - Three or more attempts on one challenge means needs_rework: keep the topic
