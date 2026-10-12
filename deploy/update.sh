@@ -9,7 +9,11 @@ PORT="${PORT:-8000}"
 
 git pull --ff-only
 .venv/bin/pip install -q -r requirements-web.txt
-launchctl kickstart -k "gui/$(id -u)/$LABEL"
+if [ -f "/Library/LaunchDaemons/$LABEL.plist" ]; then
+  sudo launchctl kickstart -k "system/$LABEL"      # installed with install-daemon.sh
+else
+  launchctl kickstart -k "gui/$(id -u)/$LABEL"     # installed with install-service.sh
+fi
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
