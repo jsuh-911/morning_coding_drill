@@ -47,12 +47,21 @@ class GeneratedChallenge(BaseModel):
     Trainer agent -> student. Prose for the human, spec for the machine.
     """
 
-    title: str = Field(max_length=60)
+    title: str = Field(default="", max_length=60)
     mission: str = Field(
+        default="",
         description=(
-            "the problem, in one or two sentences, in analytical language. "
-            "Must not contain the answer."
-        )
+            "the problem as the student reads it. For a generated challenge "
+            "this is written by code from the spec, not by the model"
+        ),
+    )
+    context: str = Field(
+        default="",
+        max_length=200,
+        description=(
+            "optional: one sentence of setting. No instructions, no numbers, "
+            "no hint, and do not restate the question"
+        ),
     )
     toolbox: List[str] = Field(default_factory=list, max_length=6)
     constraint_ids: List[

@@ -17,10 +17,13 @@ Nothing the agent writes is executed. The spec is interpreted by
 morning_drill.spec, which is hand-written.
 """
 
+import re
+
 import pandas as pd
 
 from ..discrimination import discrimination_report
 from ..mess import ADVICE, mess_for_topic, mess_report
+from ..render import render_challenge
 from ..spec import evaluate_spec
 from . import prompts
 from .library import from_library
@@ -97,6 +100,13 @@ def validate(
     if not challenge.mission.strip():
         raise Rejection("the mission is empty")
 
+    if re.search(r"\d", challenge.context):
+        raise Rejection(
+            "`context` must not contain numbers: the question states every "
+            "number itself, and a different one here would contradict it. "
+            "Leave out the number or leave `context` empty."
+        )
+
     if challenge.level >= 3 and challenge.toolbox:
         raise Rejection(
             f"level {challenge.level} must not supply a toolbox"
@@ -148,11 +158,18 @@ def validate(
     return report
 
 
-def author(model, brief, df, max_revisions=2, seen=(), never=()):
+def author(
+    model, brief, df, max_revisions=2, seen=(), never=(), blind_check=False
+):
     """
     Trainer agent -> (GeneratedChallenge, discrimination report, notes).
 
     With no model, or after too many rejections, falls back to the library.
+
+    The mission and title are written by code from the spec
+    (morning_drill.render), so there is no prose for a reader to disagree with
+    and the blind solver is off by default. `blind_check=True` turns it back
+    on, for a model-written mission.
     """
     notes = []
     mess_kinds = mess_for_topic(brief.topic)
@@ -195,12 +212,14 @@ def author(model, brief, df, max_revisions=2, seen=(), never=()):
             challenge = from_library(brief.topic, brief.level, exclude=seen, never=never)
             return challenge, discrimination_report(df, challenge.spec), notes
 
+        candidate = render_challenge(candidate, mess_kinds)
+
         try:
             report = validate(
                 candidate,
                 df,
                 require_full_discrimination=(attempt == 0),
-                solver=model,
+                solver=model if blind_check else None,
                 mess_kinds=mess_kinds,
             )
             return candidate, report, notes

@@ -148,7 +148,7 @@ def test_validate_rejects_an_undiscriminating_challenge(df):
 
 def test_trainer_agent_revises_after_a_rejection(df):
     bad = challenge_with(
-        mission="Confirm that AD has the highest median NEFL intensity.",
+        context="Confirm that AD has the highest median NEFL intensity.",
         spec=ChallengeSpec(
             filters=[
                 {"column": "qc_score", "op": ">=", "value": 0.85},
@@ -167,14 +167,14 @@ def test_trainer_agent_revises_after_a_rejection(df):
         model, Brief(topic="groupby", level=3, rationale="x"), df
     )
 
-    assert challenge.mission == good.mission
+    assert challenge.spec == good.spec
     assert len(notes) == 1
     assert "contains the answer" in notes[0]
     assert "Your challenge was rejected" in model.prompts[1]
 
 
 def test_trainer_agent_falls_back_to_the_library_when_it_keeps_failing(df):
-    bad = challenge_with(mission="Confirm that AD has the highest value.", spec=ChallengeSpec(
+    bad = challenge_with(context="Confirm that AD has the highest value.", spec=ChallengeSpec(
         filters=[{"column": "protein", "op": "==", "value": "NEFL"},
                  {"column": "qc_score", "op": ">=", "value": 0.85}],
         group_by=["disease"], value="intensity", agg="median", reduce="idxmax"))
@@ -587,9 +587,10 @@ def test_trainer_agent_revises_after_the_blind_reader_rejects(df):
         model,
         Brief(topic="groupby", level=3, rationale="test"),
         df,
+        blind_check=True,
     )
 
-    assert challenge.mission == good.mission
+    assert challenge.spec == good.spec
     assert any("cannot be answered as worded" in n for n in notes)
     assert report["blind_check"] == "agreed"
 
@@ -700,7 +701,7 @@ def test_a_malformed_challenge_is_retried_not_treated_as_an_outage(df):
 
     challenge, _, notes = author(model, Brief(topic="groupby", level=3, rationale="t"), df)
 
-    assert challenge.mission == good.mission
+    assert challenge.spec == good.spec
     assert any("not a valid challenge" in n for n in notes)
     assert "Field required" in model.prompts[1]
     assert "could not be read as a challenge" in model.prompts[1]

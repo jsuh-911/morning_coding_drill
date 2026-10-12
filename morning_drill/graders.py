@@ -22,6 +22,15 @@ def compare_answers(answer, expected):
     scalar was wanted gets False, not a ValueError from an elementwise
     comparison leaking into an `if`.
     """
+    # A two-column group key: idxmax on a MultiIndex returns a tuple. The
+    # container rule below is for a Series or list where a scalar was wanted,
+    # and would otherwise reject the right answer.
+    if isinstance(expected, tuple):
+        if not isinstance(answer, (tuple, list)) or len(answer) != len(expected):
+            return False
+
+        return all(compare_answers(a, e) for a, e in zip(answer, expected))
+
     if isinstance(expected, pd.DataFrame):
         try:
             pd.testing.assert_frame_equal(

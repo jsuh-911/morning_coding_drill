@@ -84,13 +84,20 @@ YOUR BRIEF
   fold in:   {fold_in}
   avoid:     {avoid}
 
-Write a challenge with two parts that must agree with each other:
+Write a challenge from these parts:
 
-1. `mission` — the problem in analytical language, one or two sentences. State
-   what to compute, not how. It must not contain the answer.
-
-2. `spec` — the same problem declared mechanically:
+1. `spec` — the problem, declared mechanically:
      filters -> groupby(group_by)[value].agg(agg) -> reduce
+   The question the student reads is WRITTEN BY CODE from this spec: it states
+   the filters with their values, the statistic for each group and exactly what
+   to report. The spec is therefore the whole question, so choose it with care.
+   Leave `mission` and `title` empty.
+
+2. `context` — optional: ONE short sentence of setting (what is being compared
+   and why). No numbers, no instructions, no hints, and do not restate the
+   question; the code does that.
+
+3. `toolbox`, `constraint_ids`, `topic` and `level`, as described below.
 
 WHAT EACH REDUCE RETURNS -- the mission must ask for exactly this and
 nothing more:
@@ -109,11 +116,7 @@ the best and the worst group" is diff_extremes. Do not use one for the other.
 There is no way to return a table with several columns, and no way to
 return a value *and* its label. If the mission says "report both X and its
 Y", or asks for a per-group answer while reduce returns one value, the
-challenge is unanswerable. Pick the reduce that matches what you are asking
-for, then make the prose ask for precisely that.
-
-The mission and the spec must describe the SAME computation. The spec is how
-the work gets checked, so a mismatch makes the challenge unanswerable.
+challenge is unanswerable. Pick the reduce that matches what you want asked.
 
 Level shapes what you give away:
   1  name the needed operations in `toolbox`

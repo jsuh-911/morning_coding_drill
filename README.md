@@ -93,10 +93,16 @@ Two checks keep the question and the answer honest:
   copies of the data built so that a missing filter, a wrong statistic or a
   wrong cutoff changes the result (`morning_drill/probes.py`). Code that only
   landed on the right label fails, with a hint about which part.
-- **The mission is checked against the spec** when the trainer agent writes a
-  challenge. A second model reads the mission alone, without the spec, and says
-  what the answer is and how to compute it; if it disagrees with the spec the
-  mission goes back for a rewrite (`morning_drill/agents/solver.py`).
+- **The question is written by code from the spec** (`morning_drill/render.py`).
+  The trainer agent chooses what to ask (the spec) and may add one sentence of
+  setting; the filters with their values, the statistic for each group and
+  exactly what to report are then stated the same way every time, so a question
+  cannot say "spread" and mean something else, ask for a group while the answer
+  is a number, or sit under a title that asks a different question. An
+  independent reader rebuilt the spec from the rendered text in 24 of 24 trials.
+- **A model can still check a hand-written mission** against its spec
+  (`morning_drill/agents/solver.py`): it reads the mission alone and says what
+  the answer is and how to compute it.
 
 **Cleaning topics hand you the raw table.** On `missing_duplicates` and
 `string_ops` the DataFrame you get is a raw export (`-999` for missing values,
