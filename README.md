@@ -98,6 +98,19 @@ Two checks keep the question and the answer honest:
   what the answer is and how to compute it; if it disagrees with the spec the
   mission goes back for a rewrite (`morning_drill/agents/solver.py`).
 
+**Cleaning topics hand you the raw table.** On `missing_duplicates` and
+`string_ops` the DataFrame you get is a raw export (`-999` for missing values,
+duplicated rows, protein names in mixed case with stray spaces). The expected
+answer is computed on the clean table, and every defect is exactly reversible,
+so a correct cleaning always lands on it. The rule is the topic, nothing more:
+the curriculum order is what decides when you reach it. See
+`morning_drill/mess.py`.
+
+The synthetic data is built so that mistakes show: each protein has a different
+winning disease group, the mean and the median name different groups in several
+cells, and low-QC rows are biased. `python -m scripts.discrimination_yield`
+reports how often a random question tells right from wrong.
+
 If a question is still wrong, `session.flag("why")` (the **Flag** button in the
 web app) takes it out: it scores nothing, any attempts on it are taken back, it
 is never dealt again, and a new one replaces it.

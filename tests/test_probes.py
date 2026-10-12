@@ -23,7 +23,9 @@ from morning_drill.spec import (
 
 @pytest.fixture(scope="module")
 def df():
-    return generate_biomarker_dataset()
+    # The original table, where several wrong pipelines land on the right
+    # label. That is the situation the probes exist for.
+    return generate_biomarker_dataset(version=1)
 
 
 @pytest.fixture(scope="module")
@@ -103,3 +105,31 @@ def test_verify_marks_the_right_value_by_the_wrong_route_incorrect(df, spec):
 def test_every_library_reference_solution_passes_its_own_probes(df, challenge):
     code = "answer = " + spec_to_reference_code(challenge.spec).strip()
     assert method_failures(code, df, challenge.spec) == [], challenge.id
+
+
+def test_the_current_table_already_separates_most_of_these_mistakes():
+    """
+    The probes are the safety net. The better dataset is the first line: on it
+    most of the same wrong pipelines no longer reach the right label at all.
+    """
+    df = generate_biomarker_dataset(n=30_000, seed=3)
+    spec = ChallengeSpec(
+        filters=[
+            Filter(column="qc_score", op=">=", value=0.85),
+            Filter(column="protein", op="==", value="NEFL"),
+        ],
+        group_by=["disease"],
+        value="intensity",
+        agg="median",
+        reduce="idxmax",
+    )
+    truth = evaluate_spec(df, spec)
+
+    different = 0
+
+    for code in WRONG.values():
+        ns = {"df": df}
+        exec(code, ns)
+        different += ns["answer"] != truth
+
+    assert different >= 2

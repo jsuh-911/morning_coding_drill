@@ -20,6 +20,7 @@ morning_drill.spec, which is hand-written.
 import pandas as pd
 
 from ..discrimination import discrimination_report
+from ..mess import ADVICE, mess_for_topic, mess_report
 from ..spec import evaluate_spec
 from . import prompts
 from .library import from_library
@@ -44,7 +45,9 @@ def _selected_rows(df, spec):
     return len(frame)
 
 
-def validate(challenge, df, require_full_discrimination=False, solver=None):
+def validate(
+    challenge, df, require_full_discrimination=False, solver=None, mess_kinds=()
+):
     """
     Raise Rejection with a reason the agent can act on, or return a report.
     """
@@ -117,6 +120,21 @@ def validate(challenge, df, require_full_discrimination=False, solver=None):
             "the answer."
         )
 
+    if mess_kinds:
+        matters = mess_report(df, challenge.spec, mess_kinds)
+
+        if matters["ignorable"]:
+            fixes = "; ".join(
+                f"{kind}: {ADVICE[kind]}" for kind in matters["ignorable"]
+            )
+
+            raise Rejection(
+                "these data defects would not change the answer, so the "
+                f"student could skip cleaning them. To fix each -- {fixes}. "
+                "Every defect must matter at once. Ask for a number or a "
+                "ranked Series, not a single group label."
+            )
+
     # Last, because it spends model calls: the cheap decidable checks above
     # have already passed.
     if solver is not None:
@@ -137,6 +155,7 @@ def author(model, brief, df, max_revisions=2, seen=(), never=()):
     With no model, or after too many rejections, falls back to the library.
     """
     notes = []
+    mess_kinds = mess_for_topic(brief.topic)
 
     if model is None:
         challenge = from_library(brief.topic, brief.level, exclude=seen, never=never)
@@ -153,13 +172,24 @@ def author(model, brief, df, max_revisions=2, seen=(), never=()):
         rationale=brief.rationale,
         fold_in=", ".join(brief.fold_in) or "nothing",
         avoid=", ".join(brief.avoid) or "nothing",
+        data_notes=prompts.data_notes(mess_kinds),
     )
 
     challenge = None
 
+    first_prompt = prompt
+
     for attempt in range(max_revisions + 1):
         try:
             candidate = structured.invoke(prompt)
+        except ValueError as exc:
+            # The model's output did not parse into a challenge (a missing
+            # field, a spec the schema refuses). That is the model's mistake,
+            # worth telling it about, not an outage to fall back on.
+            problem = " ".join(str(exc).split())[:500]
+            notes.append(f"revision {attempt + 1}: the output was not a valid challenge ({problem[:160]})")
+            prompt = first_prompt + "\n\n" + prompts.MALFORMED_PROMPT.format(problem=problem)
+            continue
         except Exception as exc:
             notes.append(f"trainer agent unavailable ({exc}); used the library")
             challenge = from_library(brief.topic, brief.level, exclude=seen, never=never)
@@ -171,6 +201,7 @@ def author(model, brief, df, max_revisions=2, seen=(), never=()):
                 df,
                 require_full_discrimination=(attempt == 0),
                 solver=model,
+                mess_kinds=mess_kinds,
             )
             return candidate, report, notes
         except Rejection as rejection:
@@ -186,6 +217,7 @@ def author(model, brief, df, max_revisions=2, seen=(), never=()):
                     rationale=brief.rationale,
                     fold_in=", ".join(brief.fold_in) or "nothing",
                     avoid=", ".join(brief.avoid) or "nothing",
+                    data_notes=prompts.data_notes(mess_kinds),
                 )
                 + "\n\n"
                 + prompts.REVISION_PROMPT.format(

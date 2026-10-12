@@ -341,7 +341,7 @@ def test_the_trainer_agent_is_told_what_not_to_repeat(tmp_path):
     prompt = prompts.TRAINER_PROMPT.format(
         rules="", dataset="", domain="python", topic=brief.topic,
         level=brief.level, rationale=brief.rationale,
-        fold_in="nothing", avoid=", ".join(brief.avoid),
+        fold_in="nothing", avoid=", ".join(brief.avoid), data_notes="",
     )
 
     assert LIBRARY[0].spec_signature in prompt

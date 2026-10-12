@@ -118,8 +118,8 @@ def test_validate_rejects_a_toolbox_at_high_level(df):
 
 def test_validate_rejects_an_undiscriminating_challenge(df):
     """
-    qc_score is uniform noise, so its median by group is the same whichever
-    statistic a confused student reaches for.
+    Every protein has identical QC readings, so its median by group is the
+    same whichever statistic a confused student reaches for.
     """
     spec = ChallengeSpec(
         group_by=["protein"], value="qc_score", agg="median", reduce="idxmin"
@@ -129,8 +129,19 @@ def test_validate_rejects_an_undiscriminating_challenge(df):
         mission="Determine which assay has the weakest median QC score.",
     )
 
+    # every protein has the same QC readings, so no statistic can separate them
+    flat = pd.DataFrame(
+        {
+            "sample_id": [f"S{i}" for i in range(10)],
+            "disease": ["AD"] * 10,
+            "protein": ["MAPT", "SNCA", "NEFL", "GFAP", "TREM2"] * 2,
+            "intensity": [1.0] * 10,
+            "qc_score": [0.6, 0.7, 0.8, 0.9, 1.0] * 2,
+        }
+    )
+
     with pytest.raises(Rejection) as exc:
-        validate(bland, df)
+        validate(bland, flat)
 
     assert "not discriminating" in exc.value.reason
 
@@ -435,8 +446,10 @@ def test_a_series_returning_spec_may_ask_for_values(df):
 
 
 def test_every_library_mission_matches_its_spec(df):
+    from morning_drill.mess import mess_for_topic
+
     for challenge in LIBRARY:
-        validate(challenge, df)
+        validate(challenge, df, mess_kinds=mess_for_topic(challenge.topic))
 
 
 # ------------------------------------------------------------ blind solver
@@ -652,3 +665,79 @@ def test_a_reader_who_agrees_on_the_form_goes_on_to_the_computation(df):
     )
 
     assert validate(challenge, df, solver=model)["blind_check"] == "agreed"
+
+
+# ------------------------------------------------- malformed model output
+
+
+def test_a_malformed_challenge_is_retried_not_treated_as_an_outage(df):
+    """
+    A spec the schema refuses (diff_extremes on a count) or a missing field
+    raises ValueError at parse time. The model is told what was wrong and asked
+    again; it does not silently fall back to the library.
+    """
+    good = challenge_with()
+
+    class Flaky:
+        def __init__(self):
+            self.prompts = []
+            self.queue = [ValueError("1 validation error for GeneratedChallenge\ntitle\n  Field required"), good]
+
+        def with_structured_output(self, schema):
+            outer = self
+
+            class _S:
+                def invoke(self, prompt):
+                    outer.prompts.append(prompt)
+                    item = outer.queue.pop(0)
+                    if isinstance(item, Exception):
+                        raise item
+                    return item
+
+            return _S()
+
+    model = Flaky()
+
+    challenge, _, notes = author(model, Brief(topic="groupby", level=3, rationale="t"), df)
+
+    assert challenge.mission == good.mission
+    assert any("not a valid challenge" in n for n in notes)
+    assert "Field required" in model.prompts[1]
+    assert "could not be read as a challenge" in model.prompts[1]
+
+
+def test_an_outage_still_falls_back_to_the_library(df):
+    class Down:
+        def with_structured_output(self, schema):
+            return self
+
+        def invoke(self, prompt):
+            raise RuntimeError("api down")
+
+    challenge, _, notes = author(Down(), Brief(topic="groupby", level=1, rationale="t"), df)
+
+    assert challenge in LIBRARY
+    assert any("unavailable" in n for n in notes)
+
+
+def test_a_rejected_cleaning_challenge_says_what_each_defect_needs(df):
+    from morning_drill.mess import mess_for_topic
+
+    spec = ChallengeSpec(
+        filters=[{"column": "qc_score", "op": ">=", "value": 0.8}],
+        group_by=["protein"],
+        value="intensity",
+        agg="median",
+        reduce="nlargest",
+    )
+    challenge = challenge_with(
+        mission="Clean the raw export, then return the three proteins with the highest median intensity at qc_score >= 0.8.",
+        spec=spec,
+        topic="string_ops",
+        level=3,
+    )
+
+    with pytest.raises(Rejection) as exc:
+        validate(challenge, df, mess_kinds=mess_for_topic("string_ops"))
+
+    assert "disease_text: filter on a disease or group by disease" in exc.value.reason

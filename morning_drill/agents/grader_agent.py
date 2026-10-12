@@ -15,9 +15,13 @@ from . import prompts
 from .schemas import Review
 
 
-def verify(challenge, dataset, answer, code, runner=None):
+def verify(challenge, dataset, answer, code, runner=None, prepare=None):
     """
     The deterministic half. No model involved.
+
+    `dataset` is the clean table the expected answer is computed on. On a
+    cleaning topic the student was handed a raw copy; `prepare` rebuilds that
+    raw copy for any frame, so probes run on what they would have seen.
     """
     expected = evaluate_spec(dataset, challenge.spec)
     correct = compare_answers(answer, expected)
@@ -38,7 +42,9 @@ def verify(challenge, dataset, answer, code, runner=None):
     method_failed = False
 
     if correct and not hardcoded:
-        failures = method_failures(code, dataset, challenge.spec, runner)
+        failures = method_failures(
+            code, dataset, challenge.spec, runner, prepare
+        )
 
         if failures:
             correct = False

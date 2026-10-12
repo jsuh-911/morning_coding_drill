@@ -93,6 +93,100 @@ LIBRARY = [
         topic="groupby",
         level=4,
     ),
+    # ------------------------------------------------------ cleaning topics
+    # On these the student is handed the raw table (morning_drill.mess); the
+    # expected answer is computed on the clean one.
+    GeneratedChallenge(
+        title="Mean NEFL spread, after cleaning",
+        mission=(
+            "The raw export stores missing intensities as -999 and contains "
+            "duplicated rows. After removing both, and using only QC-passing "
+            "measurements (qc_score >= 0.85), report the difference between "
+            "the largest and smallest group-level mean NEFL intensity across "
+            "disease groups."
+        ),
+        toolbox=["replace", "drop_duplicates", "boolean filtering", "groupby", "mean"],
+        constraint_ids=["no_loops", "use_pandas"],
+        spec=ChallengeSpec(
+            filters=[
+                {"column": "qc_score", "op": ">=", "value": 0.85},
+                {"column": "protein", "op": "==", "value": "NEFL"},
+            ],
+            group_by=["disease"],
+            value="intensity",
+            agg="mean",
+            reduce="diff_extremes",
+        ),
+        topic="missing_duplicates",
+        level=1,
+    ),
+    GeneratedChallenge(
+        title="Weakest protein in a raw export",
+        mission=(
+            "This export has data-quality problems. Clean it, then, using only "
+            "measurements with qc_score >= 0.8, report the lowest group-level "
+            "mean intensity of any protein."
+        ),
+        toolbox=[],
+        constraint_ids=["no_loops", "use_pandas"],
+        spec=ChallengeSpec(
+            filters=[{"column": "qc_score", "op": ">=", "value": 0.8}],
+            group_by=["protein"],
+            value="intensity",
+            agg="mean",
+            reduce="min",
+        ),
+        topic="missing_duplicates",
+        level=3,
+    ),
+    GeneratedChallenge(
+        title="GFAP spread, after standardising labels",
+        mission=(
+            "In the raw export, protein names vary in case and carry stray "
+            "spaces, and disease labels carry stray spaces. After "
+            "standardising both, and using only QC-passing measurements "
+            "(qc_score >= 0.85), report the difference between the largest and "
+            "smallest group-level median GFAP intensity across disease groups."
+        ),
+        toolbox=["str.strip", "str.upper", "boolean filtering", "groupby", "median"],
+        constraint_ids=["no_loops", "use_pandas"],
+        spec=ChallengeSpec(
+            filters=[
+                {"column": "qc_score", "op": ">=", "value": 0.85},
+                {"column": "protein", "op": "==", "value": "GFAP"},
+            ],
+            group_by=["disease"],
+            value="intensity",
+            agg="median",
+            reduce="diff_extremes",
+        ),
+        topic="string_ops",
+        level=1,
+    ),
+    GeneratedChallenge(
+        title="Top proteins in an untidy export",
+        mission=(
+            "This export is inconsistently formatted. Clean it, then, within "
+            "the AD cohort and using only measurements with qc_score >= 0.8, "
+            "return the three proteins with the highest group-level median "
+            "intensity, as a Series ordered from highest to lowest."
+        ),
+        toolbox=[],
+        constraint_ids=["no_loops", "use_pandas"],
+        spec=ChallengeSpec(
+            filters=[
+                {"column": "qc_score", "op": ">=", "value": 0.8},
+                {"column": "disease", "op": "==", "value": "AD"},
+            ],
+            group_by=["protein"],
+            value="intensity",
+            agg="median",
+            reduce="nlargest",
+            n=3,
+        ),
+        topic="string_ops",
+        level=3,
+    ),
 ]
 
 

@@ -18,8 +18,8 @@ THE DATASET (one DataFrame named df, ~50,000 rows, regenerated per challenge)
   sample_id   id           S00000 .. S49999
   disease     categorical  Control, AD, PD, ALS
   protein     categorical  MAPT, SNCA, NEFL, GFAP, TREM2
-  intensity   numeric      lognormal, ~1% missing
-  qc_score    numeric      uniform 0.5 .. 1.0
+  intensity   numeric      right-skewed, ~1% missing
+  qc_score    numeric      0.50 .. 1.00, two decimals
 
 It is a synthetic proteomics panel: one row is one protein measurement on one
 sample.
@@ -73,7 +73,7 @@ Rules you must apply:
 TRAINER_PROMPT = """\
 {rules}
 {dataset}
-
+{data_notes}
 You are the trainer agent. You write the challenge.
 
 YOUR BRIEF
@@ -247,6 +247,9 @@ Rules:
     true and describe the readings in `problem`; still give the one you think
     is most likely.
 
+If the question says the data is raw, messy or needs cleaning, ignore that:
+the spec describes the analysis on the cleaned table.
+
 QUESTION
 {mission}
 """
@@ -270,4 +273,44 @@ on something it does not say, set `clear` to false and say why.
 
 QUESTION
 {mission}
+"""
+
+
+def data_notes(kinds):
+    """
+    What the trainer agent must know when the student is handed the raw table.
+    Empty on every other topic.
+    """
+    if not kinds:
+        return ""
+
+    from ..mess import describe
+
+    return f"""
+THIS IS A CLEANING TOPIC. The student is NOT given the table above. They get a
+raw export of it with these defects, which they must find and fix themselves:
+
+{describe(kinds)}
+
+The expected answer is computed on the CLEAN table, so a student who cleans
+correctly gets it exactly and a student who skips a step gets a different
+number. Therefore:
+  - Say in the mission that the data is a raw export that needs cleaning. At
+    level 1 you may name the defects; at levels 2 and above do not -- finding
+    them is the exercise.
+  - Ask for a NUMBER or a ranked Series (reduce max, min, diff_extremes,
+    nlargest, nsmallest or none) and use a statistic the defects move
+    (mean, median, sum, count, std, min). A single group label usually comes
+    out the same whether or not the data was cleaned, which tests nothing.
+  - Never describe the cleaned table's values or hint at the answer.
+"""
+
+
+MALFORMED_PROMPT = """\
+Your last answer could not be read as a challenge:
+
+  {problem}
+
+Fix exactly that and answer again, with every required field: title, mission,
+toolbox, constraint_ids, spec, topic and level.
 """

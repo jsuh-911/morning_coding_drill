@@ -90,6 +90,9 @@ def _loser(df, spec):
     return (key if isinstance(key, tuple) else (key,)), sign
 
 
+_planted = [0]
+
+
 def _plant(source, spec, key, value, copies, **overrides):
     """
     `copies` rows drawn from `source`, relabelled into group `key` with a
@@ -101,6 +104,13 @@ def _plant(source, spec, key, value, copies, **overrides):
         rows[col] = k
 
     rows[spec.value] = value
+
+    # Fresh ids: a student who removes duplicates by sample_id must not be
+    # penalised for a planted row that happens to share one.
+    if "sample_id" in rows.columns:
+        start = _planted[0]
+        _planted[0] += len(rows)
+        rows["sample_id"] = [f"PROBE{start + i:07d}" for i in range(len(rows))]
 
     for col, v in overrides.items():
         rows[col] = v
@@ -167,13 +177,18 @@ def probe_frames(df, spec):
 # ------------------------------------------------------------------- check
 
 
-def method_failures(code, df, spec, runner=None):
+def method_failures(code, df, spec, runner=None, prepare=None):
     """
     The first probe the code disagrees with the spec on, as a student-facing
     sentence -- or [] when the code holds up, or cannot be run to find out.
 
     One failure is enough and is all that is reported: it is a hint, and the
     hint ladder is meant to be climbed a step at a time.
+
+    `df` is the clean table the answer is computed on. `prepare` turns a probe
+    frame into what the student would have been given (the raw version, on a
+    cleaning topic), so their code is run on messy data and judged against the
+    clean truth.
     """
     if not (code or "").strip():
         return []
@@ -183,7 +198,8 @@ def method_failures(code, df, spec, runner=None):
     for kind, what, frame in probe_frames(df, spec):
         try:
             truth = evaluate_spec(frame, spec)
-            got = runner(code, frame.copy())
+            shown = prepare(frame) if prepare else frame
+            got = runner(code, shown.copy())
         except Exception:
             # Not the learner's fault: a runner limit, a name the probe does
             # not provide. Skipping is safer than failing a correct answer.

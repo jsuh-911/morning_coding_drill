@@ -45,7 +45,15 @@ CURRICULUM = {
 
 # Only these topics have a spec vocabulary behind them so far. The trainer
 # agent is confined to them; the rest of the curriculum needs new generators.
-IMPLEMENTED = {"python": ["dataframe_filtering", "groupby"]}
+IMPLEMENTED = {
+    "python": [
+        "dataframe_filtering",
+        "groupby",
+        # cleaning topics: the student is handed the raw table (morning_drill.mess)
+        "missing_duplicates",
+        "string_ops",
+    ]
+}
 
 
 def curriculum_text():

@@ -49,6 +49,16 @@ def compare_answers(answer, expected):
     if isinstance(answer, CONTAINER_TYPES):
         return False
 
+    # Cleaning pipelines reorder floating-point work; two routes to the same
+    # number can differ in the last bit.
+    if (
+        isinstance(expected, (int, float, np.number))
+        and not isinstance(expected, (bool, np.bool_))
+        and isinstance(answer, (int, float, np.number))
+        and not isinstance(answer, (bool, np.bool_))
+    ):
+        return bool(np.isclose(answer, expected, rtol=1e-9, atol=0, equal_nan=True))
+
     try:
         result = answer == expected
     except (TypeError, ValueError):

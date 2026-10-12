@@ -37,6 +37,7 @@ from typing import Annotated, Any, List, Optional, TypedDict
 from .agents import author, decide, review, verify
 from .agents.schemas import Brief, GeneratedChallenge
 from .generators import generate_biomarker_dataset
+from .mess import cleaning_code, mess_for_topic, messify
 from .spec import spec_to_reference_code
 
 
@@ -65,6 +66,8 @@ class Box:
         "digest",
         "runner",
         "flagged",
+        "truth",
+        "mess",
     )
 
     def __init__(
@@ -80,6 +83,11 @@ class Box:
         self.digest = digest
         # challenge ids the learner flagged as wrong: never dealt again
         self.flagged = list(flagged)
+        # On a cleaning topic `dataset` is the raw table the student sees and
+        # `truth` is the clean one the answer is computed on. Elsewhere truth
+        # is None and the two are the same frame.
+        self.truth = None
+        self.mess = ()
         # (code, frame) -> answer, used to re-run a submission on probe data.
         # None means the in-process default.
         self.runner = None
@@ -129,6 +137,8 @@ def prepare(state, config):
     """
     box = box_of(config)
     box.dataset = generate_biomarker_dataset()
+    box.truth = None
+    box.mess = ()
     return {}
 
 
@@ -163,13 +173,34 @@ def make_plan(model, apply_fn=None):
     return plan
 
 
+def _with_cleaning(kinds, code):
+    steps = cleaning_code(kinds) if kinds else ""
+
+    return f"{steps}\n{code}" if steps else code
+
+
 def make_author(model):
     def author_node(state, config):
         box = box_of(config)
         brief = Brief(**state["brief"])
 
+        # The topic alone decides whether the student gets the raw table.
+        kinds = mess_for_topic(brief.topic)
+
+        if kinds:
+            box.truth = box.dataset
+            box.mess = kinds
+            box.dataset = messify(box.truth, kinds)
+        else:
+            box.truth = None
+            box.mess = ()
+
         challenge, report, notes = author(
-            model, brief, box.dataset, seen=box.seen, never=box.flagged
+            model,
+            brief,
+            box.truth if box.truth is not None else box.dataset,
+            seen=box.seen,
+            never=box.flagged,
         )
 
         box.seen.append(challenge.id)
@@ -179,7 +210,9 @@ def make_author(model):
             "challenge": challenge.model_dump(),
             "discrimination": report,
             "trainer_notes": notes,
-            "reference_solution": spec_to_reference_code(challenge.spec),
+            "reference_solution": _with_cleaning(
+                box.mess, spec_to_reference_code(challenge.spec)
+            ),
             "attempt": 0,
             "prior_hints": [],
         }
@@ -214,12 +247,16 @@ def verify_node(state, config):
     box = box_of(config)
     challenge = GeneratedChallenge(**state["challenge"])
 
+    truth = box.truth if box.truth is not None else box.dataset
+    kinds = box.mess
+
     verification = verify(
         challenge,
-        box.dataset,
+        truth,
         box.answer,
         state.get("code", ""),
         runner=box.runner,
+        prepare=(lambda frame: messify(frame, kinds)) if kinds else None,
     )
 
     box.expected = verification["expected"]
