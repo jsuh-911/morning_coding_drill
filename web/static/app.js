@@ -16,6 +16,8 @@ const state = {
   datasetView: "rows",
   dataset: null,
   busy: false,
+  attempts: 0,
+  gaveUp: false,
 };
 
 /* ------------------------------------------------------------------ api */
@@ -211,6 +213,7 @@ function renderChallenge(c) {
   el("question").hidden = false;
 
   const fresh = c.key !== state.challengeId;
+  if (fresh) state.gaveUp = false;
   state.challengeId = c.key;
   state.answerName = "answer";
 
@@ -375,7 +378,7 @@ function renderRejection(d) {
 
 function busy(on, label) {
   state.busy = on;
-  ["btn-run", "btn-submit", "btn-start", "btn-ask", "btn-flag"].forEach((id) => {
+  ["btn-run", "btn-submit", "btn-start", "btn-ask", "btn-flag", "btn-solution"].forEach((id) => {
     const b = el(id);
     if (b) b.disabled = on;
   });
@@ -421,7 +424,10 @@ async function doRun() {
 }
 
 async function doSubmit() {
-  if (state.busy) return;
+  // After the solution is shown the challenge is over. The keyboard shortcut
+  // still lands here when the button is disabled, and an error from the server
+  // would replace the solution (and the Next button) on screen.
+  if (state.busy || state.gaveUp) return;
   busy(true, "The grader agent is reading your code...");
 
   try {
@@ -442,6 +448,8 @@ async function doSubmit() {
 
 function apply(d, opts = {}) {
   state.answerName = d.answer_name || "answer";
+  state.attempts = d.challenge?.attempt || 0;
+  state.gaveUp = !!d.gave_up;
   el("answer-name") && (el("answer-name").textContent = state.answerName);
 
   const dot = el("mode-dot");
@@ -596,6 +604,61 @@ function showAsk() {
   });
 }
 
+function showSolution() {
+  const tried = state.attempts > 0;
+
+  sheet(
+    `<h2>Show the solution?</h2>
+     <p class="hint-line">${tried ? "" : "You have not tried yet. "}It ends this
+     question. It counts as a miss, with no points; the attempts you spent stay
+     on record, and the next question aims at the same gap. If the question
+     itself is wrong, use <b>Flag</b> instead: that takes it out of your record
+     and costs you nothing.</p>
+     <div class="sheet-actions">
+       <button class="primary" id="btn-solution-go">Show the solution</button>
+       <button class="ghost" id="btn-solution-cancel">Keep trying</button>
+     </div>`
+  );
+
+  el("btn-solution-cancel").addEventListener("click", closeSheet);
+
+  el("btn-solution-go").addEventListener("click", async () => {
+    closeSheet();
+    busy(true, "Fetching the solution...");
+
+    try {
+      renderSolution(await api("/solution", {}));
+    } catch (e) {
+      fail(e);
+    } finally {
+      busy(false);
+      el("btn-submit").disabled = !!state.gaveUp;
+    }
+  });
+}
+
+function renderSolution(d) {
+  state.gaveUp = true;
+
+  const parts = [
+    `<div class="verdict fail"><b>SOLUTION SHOWN</b><span>counts as a miss</span></div>`,
+    block("Solution", `<pre>${esc(d.solution.reference)}</pre>`),
+  ];
+
+  if (d.solution.expected) {
+    parts.push(block("Expected answer", `<pre>${esc(d.solution.expected.repr)}</pre>`));
+  }
+
+  parts.push(
+    `<p class="hint-line">Read it, then rerun it yourself in the editor so it sticks. ` +
+      `Submit is closed for this question.</p>`,
+    `<div class="next"><button class="primary" id="btn-next">Next challenge</button></div>`
+  );
+
+  el("output").innerHTML = parts.join("");
+  el("btn-next")?.addEventListener("click", start);
+}
+
 function showFlag() {
   sheet(
     `<h2>Flag this question</h2>
@@ -638,6 +701,7 @@ el("btn-run").addEventListener("click", doRun);
 el("btn-submit").addEventListener("click", doSubmit);
 el("btn-ask").addEventListener("click", showAsk);
 el("btn-flag").addEventListener("click", showFlag);
+el("btn-solution").addEventListener("click", showSolution);
 el("btn-status").addEventListener("click", showStatus);
 el("btn-save").addEventListener("click", showSave);
 el("sheet-close").addEventListener("click", closeSheet);
@@ -676,7 +740,13 @@ document.querySelectorAll(".tab").forEach((b) =>
     }
 
     apply(existing);
-    if (existing.review) renderReview(existing.review);
+    if (existing.gave_up) {
+      el("output").innerHTML =
+        `<p class="hint-line">You looked at the solution for this question, so it is over.</p>` +
+        `<div class="next"><button class="primary" id="btn-next">Next challenge</button></div>`;
+      el("btn-next").addEventListener("click", start);
+      el("btn-submit").disabled = true;
+    } else if (existing.review) renderReview(existing.review);
     else el("output").innerHTML =
       `<p class="hint-line">Bind your result to <code>${state.answerName}</code>. ` +
       `<b>Run</b> is free. <b>Submit</b> costs an attempt.</p>`;

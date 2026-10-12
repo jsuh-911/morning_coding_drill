@@ -117,6 +117,13 @@ winning disease group, the mean and the median name different groups in several
 cells, and low-QC rows are biased. `python -m scripts.discrimination_yield`
 reports how often a random question tells right from wrong.
 
+**Solution** shows the reference solution (and the expected answer) at any
+time, and ends the question as a miss: no points, the attempt is counted
+against the topic, and the progress agent is told you gave up, so the next
+question aims at the same gap. Submit is closed for that question. If the
+question itself is wrong, use **Flag** instead; it takes the question out of
+your record and costs nothing. In a notebook it is `session.give_up()`.
+
 **Correcting the record.** The Flag button only reaches the question on screen.
 A bad question you already moved past keeps counting against you, and the
 progress agent keeps reacting to it ("groupby still slipping on..."). Fix it

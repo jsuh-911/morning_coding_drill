@@ -25,6 +25,7 @@ from .progress import (
     take_back_attempts,
 )
 from . import records
+from .spec import evaluate_spec
 from .session import BOX_KEY, Box, build_session_graph
 from .llm import coach_status, get_model, project_root, text_of
 
@@ -107,6 +108,7 @@ class Session:
         self.data = None
         self.challenge = None
         self.thread_id = None
+        self._gave_up = False
         self._last_state = None
 
         # the outcome of the previous challenge, fed to the progress agent at
@@ -123,6 +125,7 @@ class Session:
         mission is printed.
         """
         self.thread_id = f"challenge-{uuid.uuid4().hex[:8]}"
+        self._gave_up = False
 
         result = self.graph.invoke(
             {"_outcome": self._outcome},
@@ -141,6 +144,12 @@ class Session:
         """
         if self.thread_id is None:
             raise RuntimeError("No active challenge. Run session.start() first.")
+
+        if self._gave_up:
+            raise RuntimeError(
+                "You looked at the solution, so this challenge is over. "
+                "Run session.start() for the next one."
+            )
 
         self.box.answer = answer
 
@@ -331,6 +340,64 @@ class Session:
                 )
 
             print()
+
+    @property
+    def gave_up(self):
+        return self._gave_up
+
+    def give_up(self):
+        """
+        Show the reference solution without having solved the challenge.
+
+        It ends the challenge as a miss: no points, the attempt is recorded and
+        counted against the topic, and the progress agent sees "gave up" as the
+        reason, so the next challenge aims at the same gap instead of advancing.
+        If the QUESTION is what is wrong, flag() is the right call: it takes the
+        challenge out of the record instead of scoring it as a miss.
+
+        Returns {"reference": source, "expected": the answer}.
+        """
+        if self.thread_id is None or self._current is None:
+            raise RuntimeError("No active challenge. Run session.start() first.")
+
+        state = self._last_state
+        challenge = GeneratedChallenge(**state["challenge"])
+
+        if not self._gave_up:
+            self._gave_up = True
+            self._current["gave_up"] = True
+
+            entry = {
+                "topic": challenge.topic,
+                "level": challenge.level,
+                "passed": False,
+                "correct": False,
+                "attempt": self._current["attempts"] + 1,
+                "challenge_id": challenge.id,
+                "root_cause": "gave up and looked at the solution",
+            }
+
+            self._record(
+                self.box,
+                entry,
+                {
+                    "brief": state.get("brief", {}),
+                    "review": {
+                        "error_class": "gave_up",
+                        "root_cause": entry["root_cause"],
+                    },
+                    "violations": [],
+                    "code": "",
+                    "discrimination": state.get("discrimination", {}),
+                },
+            )
+
+        truth = self.box.truth if self.box.truth is not None else self.box.dataset
+
+        return {
+            "reference": state["reference_solution"],
+            "expected": evaluate_spec(truth, challenge.spec),
+        }
 
     def reference(self):
         """

@@ -111,6 +111,7 @@ def _envelope(session, **extra):
         "exec_mode": config.exec_mode(),
         "answer_name": ANSWER_NAME,
         "agents_enabled": session.agents_enabled,
+        "gave_up": session.gave_up,
     }
     payload.update(extra)
     return payload
@@ -196,6 +197,34 @@ def flag(body: FlagIn):
         return _envelope(session, review=None)
 
 
+@app.post("/api/solution", dependencies=[Depends(require_token)])
+def solution():
+    """
+    Show the reference solution without having solved it. Ends the challenge as
+    a miss (see Session.give_up); Flag is the way out when the question itself
+    is wrong.
+    """
+    with _lock:
+        session = get_session()
+
+        if session.thread_id is None:
+            raise HTTPException(status_code=409, detail="No challenge yet.")
+
+        try:
+            shown = session.give_up()
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Could not show it: {exc}")
+
+        return _envelope(
+            session,
+            review=None,
+            solution={
+                "reference": shown["reference"],
+                "expected": views.preview_of(shown["expected"]),
+            },
+        )
+
+
 @app.post("/api/run", dependencies=[Depends(require_token)])
 def run(body: CodeIn):
     """
@@ -237,6 +266,13 @@ def submit(body: CodeIn):
 
         if session.thread_id is None:
             raise HTTPException(status_code=409, detail="No challenge yet.")
+
+        if session.gave_up:
+            raise HTTPException(
+                status_code=409,
+                detail="You looked at the solution, so this challenge is over. "
+                "Start the next one.",
+            )
 
         result = run_user_code(body.code, session.data)
 
