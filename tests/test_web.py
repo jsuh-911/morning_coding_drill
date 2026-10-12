@@ -335,3 +335,31 @@ def test_flag_deals_a_new_question_and_costs_nothing(started):
 
 def test_flag_before_start_is_a_409(client):
     assert client.post("/api/flag", json={"reason": "x"}).status_code == 409
+
+
+# ----------------------------------------------------------------- caching
+
+
+@pytest.mark.parametrize("path", ["/", "/static/app.js", "/static/style.css", "/static/index.html"])
+def test_the_page_and_its_files_are_always_revalidated(client, path):
+    """
+    A browser that reuses an old app.js next to a new index.html shows a button
+    with nothing wired to it. no-cache plus the ETag keeps updates honest.
+    """
+    response = client.get(path)
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-cache"
+    assert response.headers.get("etag")
+
+
+def test_a_repeat_request_is_a_cheap_304(client):
+    etag = client.get("/static/app.js").headers["etag"]
+
+    again = client.get("/static/app.js", headers={"If-None-Match": etag})
+
+    assert again.status_code == 304
+
+
+def test_the_api_is_not_given_the_page_cache_header(started):
+    assert "no-cache" not in started.get("/api/state").headers.get("cache-control", "")

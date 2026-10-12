@@ -24,6 +24,23 @@ STATIC = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="Morning Coding Drill", docs_url=None, redoc_url=None)
 
+
+@app.middleware("http")
+async def revalidate_the_page(request: Request, call_next):
+    """
+    The page and its script are separate files. With only an ETag and a
+    Last-Modified, a browser decides for itself how long to reuse each one, so
+    after an update it can pair the new index.html with the old app.js: the
+    button is there and nothing is wired to it. no-cache makes it ask every
+    time, and the ETag turns that into a cheap 304 when nothing changed.
+    """
+    response = await call_next(request)
+
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+
+    return response
+
 # Session holds a LangGraph thread and mutates files on disk; routes run in a
 # threadpool, so one lock serialises the whole thing. Single learner, so there
 # is nothing to gain from concurrency and a corrupt record to lose.
